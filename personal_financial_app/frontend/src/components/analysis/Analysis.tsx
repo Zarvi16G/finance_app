@@ -1,0 +1,148 @@
+/**
+ * AI-powered financial analysis page: runs the
+analysis service (optionally on filtered
+records) and renders the text report.
+ */
+import { useState } from 'react';
+import CardBox from '../shared/CardBox';
+import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
+import { aiApi } from '../../api/ai';
+import { getErrorMessage } from '../../api/client';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
+import { Icon } from '@iconify/react';
+
+function renderRichText(text: string) {
+  return text.split('\n').map((line, i) => {
+    const trimmed = line.trim();
+    if (!trimmed) return <div key={i} className="h-2" />;
+
+    if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
+      return (
+        <div key={i} className="flex gap-2">
+          <span className="text-primary">•</span>
+          <span>{renderInline(trimmed.replace(/^[-•]\s*/, ''))}</span>
+        </div>
+      );
+    }
+
+    if (/^\d+\.\s/.test(trimmed)) {
+      return (
+        <div key={i} className="flex gap-2">
+          <span className="font-semibold text-primary">{trimmed.match(/^\d+\./)?.[0]}</span>
+          <span>{renderInline(trimmed.replace(/^\d+\.\s*/, ''))}</span>
+        </div>
+      );
+    }
+
+    if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
+      return (
+        <h3 key={i} className="mt-4 mb-1 font-semibold text-foreground">
+          {renderInline(trimmed)}
+        </h3>
+      );
+    }
+
+    return <p key={i} className="text-foreground/90">{renderInline(trimmed)}</p>;
+  });
+}
+
+function renderInline(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) =>
+    part.startsWith('**') && part.endsWith('**') ? (
+      <strong key={i} className="font-semibold text-foreground">
+        {part.slice(2, -2)}
+      </strong>
+    ) : (
+      <span key={i}>{part}</span>
+    ),
+  );
+}
+
+export default function Analysis() {
+  const [analysis, setAnalysis] = useState('');
+  const [usedFallback, setUsedFallback] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [hasRun, setHasRun] = useState(false);
+  const [error, setError] = useState('');
+
+  const runAnalysis = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const result = await aiApi.analyze();
+      setAnalysis(result.analysis);
+      setUsedFallback(result.used_fallback);
+      setHasRun(true);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-semibold text-foreground">Financial Analysis</h2>
+          <p className="text-sm text-muted-foreground">
+            AI-powered audit of your spending, savings and goals
+          </p>
+        </div>
+        <Button onClick={runAnalysis} disabled={loading}>
+          {loading ? (
+            <>
+              <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              Analyzing…
+            </>
+          ) : (
+            <>
+              <Icon icon="solar:magic-stick-3-linear" height={18} width={18} className="mr-2" />
+              {hasRun ? 'Run Again' : 'Start Analysis'}
+            </>
+          )}
+        </Button>
+      </div>
+
+      {error && <p className="rounded-md bg-error/10 px-3 py-2 text-sm text-error">{error}</p>}
+
+      {!hasRun && !loading && (
+        <CardBox className="p-12 text-center">
+          <Icon
+            icon="solar:chart-square-outline"
+            height={56}
+            width={56}
+            className="mx-auto text-muted-foreground"
+          />
+          <p className="mt-4 text-foreground">
+            Run an AI analysis to get an executive health audit, budget leak analysis and
+            actionable steps.
+          </p>
+        </CardBox>
+      )}
+
+      {hasRun && (
+        <CardBox>
+          <div className="p-6">
+            {usedFallback && (
+              <Alert className="mb-4 border-warning bg-lightwarning text-warning">
+                <AlertTitle>Rule-based analysis</AlertTitle>
+                <AlertDescription>
+                  No external AI provider responded, so the built-in expert system generated this
+                  report.
+                </AlertDescription>
+              </Alert>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="lightPrimary">Financial Health</Badge>
+              <Badge variant="lightSuccess">Actionable</Badge>
+            </div>
+            <div className="mt-4 space-y-1">{renderRichText(analysis)}</div>
+          </div>
+        </CardBox>
+      )}
+    </div>
+  );
+}

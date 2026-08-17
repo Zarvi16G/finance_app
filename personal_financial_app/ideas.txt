@@ -1,0 +1,72 @@
+To check duplicates on pdf, willuse hash when the content is extracted
+then will need to check the content generated to clarify is that correct
+[ User Uploads PDF ]
+        │
+        ▼
+[ Extract Text Content ]
+        │
+        ▼
+[ Normalize Text ] (Lowercase, strip trailing whitespace)
+        │
+        ▼
+[ Generate Hash Key ] (SHA-256)
+        │
+        ▼
+[ Check Against Database / Cache ]
+     ├── Key Exists  ──> Flag as Duplicate / Reject
+     └── Key Is New  ──> Process File & Store Hash
+
+
+WE get query to see the transactions on the request by 
+Use the returned id in: GET /api/extracted-transactions/?statement_id={that_id}
+
+
+URL Structure & View Mapping
+finance_api/urls.py
+Method	URL	View	Purpose
+GET/POST/PUT/DELETE	records/	FinancialRecordViewSet	CRUD incomes & expenses
+GET/POST/PUT/DELETE	goals/	ExpectedGoalViewSet	CRUD financial goals
+GET/POST/PUT/DELETE	statements/	BankStatementViewSet	Upload & process bank PDFs
+GET/POST/PUT/DELETE	debts/	DebtViewSet	CRUD debts, payoff strategies
+GET/POST/PUT/DELETE	snapshots/	FinancialSnapshotViewSet	Monthly snapshots (read-only + generate)
+GET	analytics/	FinancialAnalyticsView	Dashboard analytics
+GET	export/csv/	ExportCSVView	Download CSV
+GET	export/pdf/	ExportPDFView	Download PDF report
+POST	analysis/	AIAnalysisView	AI-powered financial advice
+GET	goals/analysis/	GoalsAnalysisView	Goals grouped by category
+GET	extracted-transactions/	BankStatementViewSet.extracted_transactions	Transactions from a statement
+POST	debts/{id}/make_payment/	DebtViewSet.make_payment	Record a debt payment
+GET	debts/payoff_strategy/	DebtViewSet.payoff_strategy	Avalanche vs snowball
+POST	snapshots/generate/	FinancialSnapshotViewSet.generate	Create monthly snapshot
+Data Dependencies
+FinancialRecord ──────┬── Analytics ──┬── income_vs_expenses
+(incomes/expenses)     │               ├── expense_by_category
+                       │               ├── income_by_category
+                       │               ├── monthly_trends
+                       │               ├── financial_ratios
+                       │               └── summary
+                       │
+                       ├── CSV/PDF Export ── filtered record dump
+                       │
+                       ├── AI Analysis ── Ollama or fallback rule engine
+                       │
+                       └── FinancialSnapshot ── aggregates by month
+
+ExpectedGoal ─────────┬── GoalsAnalysis ── grouped by category
+(goals)               │
+                      └── AI Analysis ── goal progress evaluation
+
+Debt ─────────────────┬── Analytics ── debt_summary, ratios
+(active debts)        │Build·DeepSeek V4 Flash FreeOpenCode Zen·max
+                      └── payoff_strategy ── avalanche/snowball
+
+BankStatement ────────┐
+(PDF upload)          ├── ExtractedTransaction ──confirm──▶ FinancialRecord
+                      │                              (creates)
+                      └── extracted_transactions ── list pending
+Flow
+1. Manual entry → POST records/ creates FinancialRecord directly
+2. PDF upload → POST statements/ → process_statement() extracts transactions → stored as ExtractedTransaction (status: review_pending) → user confirms via confirm action → creates FinancialRecord
+3. All analytics/export views query FinancialRecord (optionally filtered by start_date/end_date/type/category) and compute aggregations on the fly
+4. Snapshots are pre-computed monthly rollups stored in FinancialSnapshot, generated manually via POST snapshots/generate/
+5. AI analysis sends current financial context to local Ollama; if offline, falls back to a hardcoded rule engine that assesses savings rate, top categories, and goal progress
