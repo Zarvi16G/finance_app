@@ -1,5 +1,6 @@
 """Serializers for financial goals."""
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 
 from ..models.goals import ExpectedGoal
 
@@ -29,6 +30,7 @@ class ExpectedGoalSerializer(serializers.ModelSerializer):
             'created_at'
         ]
 
+    @extend_schema_field(serializers.FloatField)
     def get_progress_percentage(self, obj):
         """
         Calculates and bounds the current savings progress percentage.

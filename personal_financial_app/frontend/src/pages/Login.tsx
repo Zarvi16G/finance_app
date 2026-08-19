@@ -1,16 +1,16 @@
 /**
  * Login page (public-only route). Submits credentials through
-AuthContext; redirects to the dashboard on success.
+ * AuthContext; redirects to the dashboard on success.
  */
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import CardBox from '../components/shared/CardBox';
+import LedgerMark from '../components/shared/LedgerMark';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { useAuth } from '../auth/AuthContext';
 import { getErrorMessage } from '../api/client';
-import logo from '../assets/logo.svg';
 
 export default function Login() {
   const { login } = useAuth();
@@ -35,36 +35,54 @@ export default function Login() {
   };
 
   return (
-    <div className="relative overflow-hidden h-screen bg-lightprimary dark:bg-darkprimary">
-      <div className="flex h-full justify-center items-center px-4">
-        <CardBox className="md:w-[450px] w-full border-none">
-          <div className="mx-auto mb-6 text-center">
-            <img src={logo} alt="FinanceApp logo" className="mx-auto h-14 w-14" />
-            <h3 className="mt-2 text-2xl font-semibold text-foreground">FinanceApp</h3>
-            <p className="text-sm text-muted-foreground mt-1">Sign in to your account</p>
+    <div className="ledger-ruled relative flex h-screen items-center justify-center overflow-hidden bg-background px-4">
+      <div className="w-full max-w-md">
+        <CardBox className="border-border px-8 py-8 shadow-lg">
+          <div className="flex items-center gap-3 border-b border-border pb-5">
+            <LedgerMark className="h-9 w-9 text-foreground" />
+            <div>
+              <p className="font-mono text-xs font-semibold uppercase tracking-[0.22em] text-foreground">
+                Ledgerline
+              </p>
+              <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground">
+                Personal financial ledger
+              </p>
+            </div>
           </div>
 
-          <form className="mt-6" onSubmit={handleSubmit}>
-            <div className="mb-4">
-              <div className="mb-2 block">
-                <Label htmlFor="username">Username</Label>
-              </div>
+          <div className="pt-6">
+            <p className="letterhead">Account Holder · Sign-In</p>
+            <h1 className="mt-1 font-display text-3xl font-normal text-foreground">
+              Sign in to your ledger
+            </h1>
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              Your records are private — they live on this server only.
+            </p>
+          </div>
+
+          <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
+            <div>
+              <Label htmlFor="username" className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                Username
+              </Label>
               <Input
                 id="username"
                 type="text"
+                className="mt-1 rounded-none border-x-0 border-t-0 bg-transparent px-0 focus-visible:border-b-2"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
                 autoComplete="username"
               />
             </div>
-            <div className="mb-4">
-              <div className="mb-2 block">
-                <Label htmlFor="userpwd">Password</Label>
-              </div>
+            <div>
+              <Label htmlFor="userpwd" className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                Password
+              </Label>
               <Input
                 id="userpwd"
                 type="password"
+                className="mt-1 rounded-none border-x-0 border-t-0 bg-transparent px-0 focus-visible:border-b-2"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -73,21 +91,27 @@ export default function Login() {
             </div>
 
             {error && (
-              <p className="mb-3 rounded-md bg-error/10 px-3 py-2 text-sm text-error">{error}</p>
+              <p className="rounded-sm bg-error/10 px-3 py-2 font-mono text-xs text-error">
+                {error}
+              </p>
             )}
 
-            <Button type="submit" className="w-full" disabled={submitting}>
+            <Button type="submit" className="w-full font-mono text-[12px] uppercase tracking-[0.14em]" disabled={submitting}>
               {submitting ? 'Signing in…' : 'Sign in'}
             </Button>
           </form>
 
-          <div className="flex gap-2 text-base text-ld font-medium mt-6 items-center justify-center">
-            <p>New to FinanceApp?</p>
-            <Link to="/register" className="text-primary text-sm font-medium">
-              Create an account
-            </Link>
+          <div className="mt-6 flex items-center justify-between border-t border-border pt-4">
+            <p className="text-sm text-muted-foreground">New to Ledgerline?</p>
+            <Button asChild variant="ghost" size="sm" className="font-mono text-[11px] uppercase tracking-[0.12em]">
+              <Link to="/register">Open an account</Link>
+            </Button>
           </div>
         </CardBox>
+
+        <p className="mt-4 text-center font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">
+          Statement of identity · All figures stay yours
+        </p>
       </div>
     </div>
   );

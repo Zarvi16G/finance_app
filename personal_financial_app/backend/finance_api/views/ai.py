@@ -5,6 +5,7 @@ import re
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiTypes
 
 from ..models import Choice, CustomCategory, CategorizationMemory, ExtractedTransaction
 from ..services.ai import providers as ai_providers
@@ -13,6 +14,13 @@ from ..services.ai import key_validation
 from ..services.chat_service import build_chat_prompt, parse_ai_reply, fallback_chat
 
 
+@extend_schema_view(
+    post=extend_schema(
+        request=OpenApiTypes.OBJECT,
+        responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT, 503: OpenApiTypes.OBJECT},
+        description='Suggest AI categories for transactions based on their descriptions.',
+    )
+)
 class AICategorizationView(APIView):
     """
     Use the configured AI provider to suggest categories for transactions
@@ -62,6 +70,13 @@ class AICategorizationView(APIView):
             return Response({'error': f'AI service unavailable: {str(e)}'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
+@extend_schema_view(
+    post=extend_schema(
+        request=OpenApiTypes.OBJECT,
+        responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT},
+        description='Conversational AI assistant for transaction management. Falls back to a rule engine when offline.',
+    )
+)
 class AIChatView(APIView):
     """
     Conversational AI assistant for transaction management.
@@ -93,6 +108,17 @@ class AIChatView(APIView):
         return Response({'reply': reply, 'actions': actions})
 
 
+@extend_schema_view(
+    get=extend_schema(
+        responses={200: OpenApiTypes.OBJECT},
+        description='Returns the public AI config (provider, model, masked keys only).',
+    ),
+    put=extend_schema(
+        request=OpenApiTypes.OBJECT,
+        responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT},
+        description='Accepts {provider?, model?, api_key?}. An api_key is validated live against the provider before being stored encrypted.',
+    ),
+)
 class AISettingsView(APIView):
     """
     Manage AI provider settings and API keys.

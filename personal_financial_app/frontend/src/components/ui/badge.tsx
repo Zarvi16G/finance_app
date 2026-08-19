@@ -1,20 +1,21 @@
-// shadcn/ui primitive: badge (Radix + Tailwind).
+// shadcn/ui primitive: badge — restyled as statement stamps:
+// squared-off, monospace, uppercase, printed on tinted stock.
 import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from 'src/lib/utils';
 
 const badgeVariants = cva(
-  'inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+  'inline-flex items-center rounded-[2px] border px-2 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.12em] transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
   {
     variants: {
       variant: {
-        default: 'border-transparent text-white bg-primary',
-        primary: 'border-transparent text-white bg-primary',
-        secondary: 'border-transparent bg-secondary text-white',
-        success: 'border-transparent bg-success text-white',
-        warning: 'border-transparent bg-warning text-white',
-        info: 'border-transparent bg-info text-white',
-        error: 'border-transparent bg-error text-white',
+        default: 'border-transparent text-primary-foreground bg-primary',
+        primary: 'border-transparent text-primary-foreground bg-primary',
+        secondary: 'border-transparent bg-secondary text-secondary-foreground',
+        success: 'border-transparent bg-success text-white dark:text-dark',
+        warning: 'border-transparent bg-warning text-white dark:text-dark',
+        info: 'border-transparent bg-info text-white dark:text-dark',
+        error: 'border-transparent bg-error text-white dark:text-dark',
         outline: 'border-primary text-primary',
         outlineSecondary: 'border-secondary text-secondary',
         outlineSuccess: 'border-success text-success',

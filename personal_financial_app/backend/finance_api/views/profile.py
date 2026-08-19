@@ -1,10 +1,22 @@
 """API views for profile settings (currency, custom categories and types)."""
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiTypes
 
 from ..models import Choice, CustomType, CustomCategory, UserSetting
 
 
+@extend_schema_view(
+    get=extend_schema(
+        responses={200: OpenApiTypes.OBJECT},
+        description='Returns the profile: currency code plus all custom types and categories.',
+    ),
+    put=extend_schema(
+        request=OpenApiTypes.OBJECT,
+        responses={200: OpenApiTypes.OBJECT},
+        description='Updates currency and/or creates custom types and categories (new_type, new_category, new_category_type).',
+    ),
+)
 class ProfileSettingsView(APIView):
     def get(self, request):
         setting, _ = UserSetting.objects.get_or_create(pk=1)

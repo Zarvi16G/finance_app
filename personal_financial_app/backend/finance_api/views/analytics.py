@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from django.utils import timezone
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from drf_spectacular.utils import extend_schema, OpenApiTypes
 
 from ..models import Debt
 from ..services.analytics_service import (
@@ -13,6 +14,14 @@ from ..services.analytics_service import (
 )
 
 
+@extend_schema(
+    responses={200: OpenApiTypes.OBJECT},
+    description=(
+        'Comprehensive dashboard data (stat tiles, charts, health ratios, debt summary) '
+        'for the date range given by start_date / end_date (YYYY-MM-DD). Serves from '
+        'pre-computed FinancialSnapshot when available, otherwise computes live.'
+    ),
+)
 class FinancialAnalyticsView(APIView):
     """
     Comprehensive financial analytics dashboard data.

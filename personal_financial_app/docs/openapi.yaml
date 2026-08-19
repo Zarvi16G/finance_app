@@ -1,0 +1,3267 @@
+openapi: 3.0.3
+info:
+  title: Personal Finance API
+  version: 1.0.0
+  description: 'REST API for the Personal Financial App: financial records, bank statement
+    PDF extraction, debts, goals, analytics snapshots, exports, and AI-powered analysis,
+    categorization and chat (Gemini / OpenAI / Anthropic).'
+paths:
+  /api/ai-categorize/:
+    post:
+      operationId: ai_categorize_create
+      description: Suggest AI categories for transactions based on their descriptions.
+      tags:
+      - ai-categorize
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: {}
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: {}
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '503':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/ai-chat/:
+    post:
+      operationId: ai_chat_create
+      description: Conversational AI assistant for transaction management. Falls back
+        to a rule engine when offline.
+      tags:
+      - ai-chat
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: {}
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: {}
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/ai-settings/:
+    get:
+      operationId: ai_settings_retrieve
+      description: Returns the public AI config (provider, model, masked keys only).
+      tags:
+      - ai-settings
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+    put:
+      operationId: ai_settings_update
+      description: Accepts {provider?, model?, api_key?}. An api_key is validated
+        live against the provider before being stored encrypted.
+      tags:
+      - ai-settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: {}
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: {}
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/analysis/:
+    post:
+      operationId: analysis_create
+      description: Runs a smart financial analysis over the filtered records and goals,
+        returning an executive health audit, budget leak analysis and actionable steps.
+      tags:
+      - analysis
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: {}
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: {}
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '503':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/analytics/:
+    get:
+      operationId: analytics_retrieve
+      description: Comprehensive dashboard data (stat tiles, charts, health ratios,
+        debt summary) for the date range given by start_date / end_date (YYYY-MM-DD).
+        Serves from pre-computed FinancialSnapshot when available, otherwise computes
+        live.
+      tags:
+      - analytics
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/auth/login/:
+    post:
+      operationId: auth_login_create
+      description: Exchanges username + password for a JWT pair and the user profile.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPairRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPairRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPairRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/auth/logout/:
+    post:
+      operationId: auth_logout_create
+      description: Revokes the refresh token (requires auth, refresh sent in the body).
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: {}
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: {}
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/auth/me/:
+    get:
+      operationId: auth_me_retrieve
+      description: Returns the profile of the token owner.
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/auth/refresh/:
+    post:
+      operationId: auth_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/auth/register/:
+    post:
+      operationId: auth_register_create
+      description: Creates a new account and returns the JWT pair + user so the client
+        is signed in immediately.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/auth/verify/:
+    post:
+      operationId: auth_verify_create
+      description: |-
+        Takes a token and indicates if it is valid.  This view provides no
+        information about a token's fitness for a particular use.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenVerifyRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenVerifyRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenVerifyRequest'
+        required: true
+      responses:
+        '200':
+          description: No response body
+  /api/choices/:
+    get:
+      operationId: choices_retrieve
+      description: Lists all choices (categories and types) with their fields.
+      tags:
+      - choices
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+    delete:
+      operationId: choices_destroy
+      description: Deletes a custom choice by id; built-in choices cannot be deleted.
+      tags:
+      - choices
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/choices/{id}/:
+    get:
+      operationId: choices_retrieve_2
+      description: Lists all choices (categories and types) with their fields.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - choices
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+    delete:
+      operationId: choices_destroy_2
+      description: Deletes a custom choice by id; built-in choices cannot be deleted.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - choices
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/custom-categories/:
+    get:
+      operationId: custom_categories_retrieve
+      description: Lists custom expense/income categories.
+      tags:
+      - custom-categories
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+    post:
+      operationId: custom_categories_create
+      description: Creates a custom category (name, type=expense|income).
+      tags:
+      - custom-categories
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: {}
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: {}
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+    put:
+      operationId: custom_categories_update
+      description: Renames or re-types a custom category.
+      tags:
+      - custom-categories
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: {}
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: {}
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+    delete:
+      operationId: custom_categories_destroy
+      tags:
+      - custom-categories
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/custom-categories/{id}/:
+    get:
+      operationId: custom_categories_retrieve_2
+      description: Lists custom expense/income categories.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - custom-categories
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+    post:
+      operationId: custom_categories_create_2
+      description: Creates a custom category (name, type=expense|income).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - custom-categories
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: {}
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: {}
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+    put:
+      operationId: custom_categories_update_2
+      description: Renames or re-types a custom category.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - custom-categories
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: {}
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: {}
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+    delete:
+      operationId: custom_categories_destroy_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - custom-categories
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/custom-types/:
+    get:
+      operationId: custom_types_retrieve
+      description: Lists custom transaction types.
+      tags:
+      - custom-types
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+    post:
+      operationId: custom_types_create
+      description: Creates a custom transaction type (name).
+      tags:
+      - custom-types
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: {}
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: {}
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+    put:
+      operationId: custom_types_update
+      tags:
+      - custom-types
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: {}
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: {}
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+    delete:
+      operationId: custom_types_destroy
+      tags:
+      - custom-types
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/custom-types/{id}/:
+    get:
+      operationId: custom_types_retrieve_2
+      description: Lists custom transaction types.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - custom-types
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+    post:
+      operationId: custom_types_create_2
+      description: Creates a custom transaction type (name).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - custom-types
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: {}
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: {}
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+    put:
+      operationId: custom_types_update_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - custom-types
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: {}
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: {}
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+    delete:
+      operationId: custom_types_destroy_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - custom-types
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/debts/:
+    get:
+      operationId: debts_list
+      description: ViewSet for managing user debts.
+      tags:
+      - debts
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Debt'
+          description: ''
+    post:
+      operationId: debts_create
+      description: ViewSet for managing user debts.
+      tags:
+      - debts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DebtRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DebtRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DebtRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Debt'
+          description: ''
+  /api/debts/{id}/:
+    get:
+      operationId: debts_retrieve
+      description: ViewSet for managing user debts.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this debt.
+        required: true
+      tags:
+      - debts
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Debt'
+          description: ''
+    put:
+      operationId: debts_update
+      description: ViewSet for managing user debts.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this debt.
+        required: true
+      tags:
+      - debts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DebtRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DebtRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DebtRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Debt'
+          description: ''
+    patch:
+      operationId: debts_partial_update
+      description: ViewSet for managing user debts.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this debt.
+        required: true
+      tags:
+      - debts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedDebtRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedDebtRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedDebtRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Debt'
+          description: ''
+    delete:
+      operationId: debts_destroy
+      description: ViewSet for managing user debts.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this debt.
+        required: true
+      tags:
+      - debts
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/debts/{id}/make_payment/:
+    post:
+      operationId: debts_make_payment_create
+      description: Record a payment on a debt.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this debt.
+        required: true
+      tags:
+      - debts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DebtRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DebtRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DebtRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Debt'
+          description: ''
+  /api/debts/payoff_strategy/:
+    get:
+      operationId: debts_payoff_strategy_retrieve
+      description: Get recommended payoff strategy (avalanche vs snowball).
+      tags:
+      - debts
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Debt'
+          description: ''
+  /api/export/csv/:
+    get:
+      operationId: export_csv_retrieve
+      description: Generates a downloadable CSV extract of the filtered financial
+        records.
+      tags:
+      - export
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/export/pdf/:
+    get:
+      operationId: export_pdf_retrieve
+      description: Generates a downloadable PDF statement of the filtered financial
+        records (totals + ledger table).
+      tags:
+      - export
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/extracted/:
+    get:
+      operationId: extracted_list
+      description: ViewSet for managing extracted transactions awaiting review.
+      tags:
+      - extracted
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExtractedTransaction'
+          description: ''
+    post:
+      operationId: extracted_create
+      description: ViewSet for managing extracted transactions awaiting review.
+      tags:
+      - extracted
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExtractedTransactionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ExtractedTransactionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ExtractedTransactionRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExtractedTransaction'
+          description: ''
+  /api/extracted-transactions/:
+    get:
+      operationId: extracted_transactions_retrieve
+      description: Get all extracted transactions for a statement.
+      tags:
+      - extracted-transactions
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankStatement'
+          description: ''
+  /api/extracted/{id}/:
+    get:
+      operationId: extracted_retrieve
+      description: ViewSet for managing extracted transactions awaiting review.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this extracted transaction.
+        required: true
+      tags:
+      - extracted
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExtractedTransaction'
+          description: ''
+    put:
+      operationId: extracted_update
+      description: ViewSet for managing extracted transactions awaiting review.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this extracted transaction.
+        required: true
+      tags:
+      - extracted
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExtractedTransactionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ExtractedTransactionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ExtractedTransactionRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExtractedTransaction'
+          description: ''
+    patch:
+      operationId: extracted_partial_update
+      description: ViewSet for managing extracted transactions awaiting review.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this extracted transaction.
+        required: true
+      tags:
+      - extracted
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedExtractedTransactionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedExtractedTransactionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedExtractedTransactionRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExtractedTransaction'
+          description: ''
+    delete:
+      operationId: extracted_destroy
+      description: ViewSet for managing extracted transactions awaiting review.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this extracted transaction.
+        required: true
+      tags:
+      - extracted
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/extracted/{id}/confirm/:
+    post:
+      operationId: extracted_confirm_create
+      description: Confirm a transaction's categorization and create/update FinancialRecord.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this extracted transaction.
+        required: true
+      tags:
+      - extracted
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExtractedTransactionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ExtractedTransactionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ExtractedTransactionRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExtractedTransaction'
+          description: ''
+  /api/extracted/bulk_confirm/:
+    post:
+      operationId: extracted_bulk_confirm_create
+      description: Bulk confirm multiple transactions (handles both create and update).
+      tags:
+      - extracted
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExtractedTransactionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ExtractedTransactionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ExtractedTransactionRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExtractedTransaction'
+          description: ''
+  /api/goals/:
+    get:
+      operationId: goals_list
+      description: |-
+        ViewSet for ExpectedGoal model (financial tracking goals).
+        Provides CRUD functionality to set, track, and update goal statuses.
+      tags:
+      - goals
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExpectedGoal'
+          description: ''
+    post:
+      operationId: goals_create
+      description: |-
+        ViewSet for ExpectedGoal model (financial tracking goals).
+        Provides CRUD functionality to set, track, and update goal statuses.
+      tags:
+      - goals
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExpectedGoalRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ExpectedGoalRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ExpectedGoalRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpectedGoal'
+          description: ''
+  /api/goals/{id}/:
+    get:
+      operationId: goals_retrieve
+      description: |-
+        ViewSet for ExpectedGoal model (financial tracking goals).
+        Provides CRUD functionality to set, track, and update goal statuses.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this expected goal.
+        required: true
+      tags:
+      - goals
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpectedGoal'
+          description: ''
+    put:
+      operationId: goals_update
+      description: |-
+        ViewSet for ExpectedGoal model (financial tracking goals).
+        Provides CRUD functionality to set, track, and update goal statuses.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this expected goal.
+        required: true
+      tags:
+      - goals
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExpectedGoalRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ExpectedGoalRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ExpectedGoalRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpectedGoal'
+          description: ''
+    patch:
+      operationId: goals_partial_update
+      description: |-
+        ViewSet for ExpectedGoal model (financial tracking goals).
+        Provides CRUD functionality to set, track, and update goal statuses.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this expected goal.
+        required: true
+      tags:
+      - goals
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedExpectedGoalRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedExpectedGoalRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedExpectedGoalRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpectedGoal'
+          description: ''
+    delete:
+      operationId: goals_destroy
+      description: |-
+        ViewSet for ExpectedGoal model (financial tracking goals).
+        Provides CRUD functionality to set, track, and update goal statuses.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this expected goal.
+        required: true
+      tags:
+      - goals
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/goals/analysis/:
+    get:
+      operationId: goals_analysis_retrieve
+      description: 'Financial goals analysis grouped by category: total target/current
+        per category plus overall summary.'
+      tags:
+      - goals
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/profile/:
+    get:
+      operationId: profile_retrieve
+      description: 'Returns the profile: currency code plus all custom types and categories.'
+      tags:
+      - profile
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+    put:
+      operationId: profile_update
+      description: Updates currency and/or creates custom types and categories (new_type,
+        new_category, new_category_type).
+      tags:
+      - profile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: {}
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: {}
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/records/:
+    get:
+      operationId: records_list
+      description: |-
+        ViewSet for FinancialRecord model (Incomes & Expenses).
+        Provides CRUD functionality with support for multiple filters
+        (category, bank account, dates, types, etc.)
+      tags:
+      - records
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FinancialRecord'
+          description: ''
+    post:
+      operationId: records_create
+      description: |-
+        ViewSet for FinancialRecord model (Incomes & Expenses).
+        Provides CRUD functionality with support for multiple filters
+        (category, bank account, dates, types, etc.)
+      tags:
+      - records
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinancialRecordRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FinancialRecordRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FinancialRecordRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinancialRecord'
+          description: ''
+  /api/records/{id}/:
+    get:
+      operationId: records_retrieve
+      description: |-
+        ViewSet for FinancialRecord model (Incomes & Expenses).
+        Provides CRUD functionality with support for multiple filters
+        (category, bank account, dates, types, etc.)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this financial record.
+        required: true
+      tags:
+      - records
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinancialRecord'
+          description: ''
+    put:
+      operationId: records_update
+      description: |-
+        ViewSet for FinancialRecord model (Incomes & Expenses).
+        Provides CRUD functionality with support for multiple filters
+        (category, bank account, dates, types, etc.)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this financial record.
+        required: true
+      tags:
+      - records
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinancialRecordRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FinancialRecordRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FinancialRecordRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinancialRecord'
+          description: ''
+    patch:
+      operationId: records_partial_update
+      description: |-
+        ViewSet for FinancialRecord model (Incomes & Expenses).
+        Provides CRUD functionality with support for multiple filters
+        (category, bank account, dates, types, etc.)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this financial record.
+        required: true
+      tags:
+      - records
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedFinancialRecordRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedFinancialRecordRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedFinancialRecordRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinancialRecord'
+          description: ''
+    delete:
+      operationId: records_destroy
+      description: |-
+        ViewSet for FinancialRecord model (Incomes & Expenses).
+        Provides CRUD functionality with support for multiple filters
+        (category, bank account, dates, types, etc.)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this financial record.
+        required: true
+      tags:
+      - records
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/snapshots/:
+    get:
+      operationId: snapshots_list
+      description: ViewSet for historical financial snapshots.
+      tags:
+      - snapshots
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FinancialSnapshot'
+          description: ''
+  /api/snapshots/{id}/:
+    get:
+      operationId: snapshots_retrieve
+      description: ViewSet for historical financial snapshots.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this financial snapshot.
+        required: true
+      tags:
+      - snapshots
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinancialSnapshot'
+          description: ''
+  /api/snapshots/generate/:
+    post:
+      operationId: snapshots_generate_create
+      description: Generate a new financial snapshot for a given month with all ratios.
+      tags:
+      - snapshots
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinancialSnapshotRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FinancialSnapshotRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FinancialSnapshotRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinancialSnapshot'
+          description: ''
+  /api/statements/:
+    get:
+      operationId: statements_list
+      description: ViewSet for managing bank statement uploads and processing.
+      tags:
+      - statements
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BankStatement'
+          description: ''
+    post:
+      operationId: statements_create
+      description: ViewSet for managing bank statement uploads and processing.
+      tags:
+      - statements
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BankStatementRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BankStatementRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BankStatementRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankStatement'
+          description: ''
+  /api/statements/{id}/:
+    get:
+      operationId: statements_retrieve
+      description: ViewSet for managing bank statement uploads and processing.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this bank statement.
+        required: true
+      tags:
+      - statements
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankStatement'
+          description: ''
+    put:
+      operationId: statements_update
+      description: ViewSet for managing bank statement uploads and processing.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this bank statement.
+        required: true
+      tags:
+      - statements
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BankStatementRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BankStatementRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BankStatementRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankStatement'
+          description: ''
+    patch:
+      operationId: statements_partial_update
+      description: ViewSet for managing bank statement uploads and processing.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this bank statement.
+        required: true
+      tags:
+      - statements
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedBankStatementRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedBankStatementRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedBankStatementRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankStatement'
+          description: ''
+    delete:
+      operationId: statements_destroy
+      description: ViewSet for managing bank statement uploads and processing.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this bank statement.
+        required: true
+      tags:
+      - statements
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/statements/{id}/file/:
+    get:
+      operationId: statements_file_retrieve
+      description: Download the original statement PDF (only for authenticated users).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this bank statement.
+        required: true
+      tags:
+      - statements
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankStatement'
+          description: ''
+  /api/statements/{id}/reprocess/:
+    post:
+      operationId: statements_reprocess_create
+      description: Reprocess a statement.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this bank statement.
+        required: true
+      tags:
+      - statements
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BankStatementRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BankStatementRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BankStatementRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankStatement'
+          description: ''
+  /api/statements/extracted_transactions/:
+    get:
+      operationId: statements_extracted_transactions_retrieve
+      description: Get all extracted transactions for a statement.
+      tags:
+      - statements
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankStatement'
+          description: ''
+components:
+  schemas:
+    AccountBankEnum:
+      enum:
+      - credit_card
+      - debit_card
+      - cash_loan
+      - bank_loan
+      - cash
+      - business_card
+      - bre_b
+      - other
+      type: string
+      description: |-
+        * `credit_card` - Credit Card
+        * `debit_card` - Debit Card
+        * `cash_loan` - Cash Loan
+        * `bank_loan` - Bank Loan
+        * `cash` - Cash
+        * `business_card` - Business Card
+        * `bre_b` - Bre-B (Employee Special Card)
+        * `other` - Other
+    BankStatement:
+      type: object
+      description: Serializer for uploaded bank statements.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        file:
+          type: string
+          format: uri
+        original_filename:
+          type: string
+          maxLength: 255
+        file_size_mb:
+          type: number
+          format: double
+          readOnly: true
+        content_hash:
+          type: string
+          readOnly: true
+          nullable: true
+          description: SHA256 hash of file content for duplicate detection
+        statement_type:
+          allOf:
+          - $ref: '#/components/schemas/StatementTypeEnum'
+          description: |-
+            Type of statement: savings, checking, credit_card, etc.
+
+            * `savings` - Savings Account
+            * `checking` - Checking Account
+            * `credit_card` - Credit Card
+            * `loan` - Loan Statement
+            * `investment` - Investment Account
+            * `other` - Other
+        statement_type_display:
+          type: string
+          readOnly: true
+        bank_name:
+          type: string
+          maxLength: 100
+        account_number:
+          type: string
+          maxLength: 50
+        statement_period_start:
+          type: string
+          format: date
+          nullable: true
+        statement_period_end:
+          type: string
+          format: date
+          nullable: true
+        uploaded_at:
+          type: string
+          format: date-time
+          readOnly: true
+        processed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/BankStatementStatusEnum'
+          readOnly: true
+        status_display:
+          type: string
+          readOnly: true
+        total_transactions_extracted:
+          type: integer
+          readOnly: true
+        total_transactions_imported:
+          type: integer
+          readOnly: true
+        error_message:
+          type: string
+          readOnly: true
+          nullable: true
+      required:
+      - content_hash
+      - error_message
+      - file
+      - file_size_mb
+      - id
+      - original_filename
+      - processed_at
+      - statement_type_display
+      - status
+      - status_display
+      - total_transactions_extracted
+      - total_transactions_imported
+      - uploaded_at
+    BankStatementRequest:
+      type: object
+      description: Serializer for uploaded bank statements.
+      properties:
+        file:
+          type: string
+          format: binary
+        original_filename:
+          type: string
+          minLength: 1
+          maxLength: 255
+        statement_type:
+          allOf:
+          - $ref: '#/components/schemas/StatementTypeEnum'
+          description: |-
+            Type of statement: savings, checking, credit_card, etc.
+
+            * `savings` - Savings Account
+            * `checking` - Checking Account
+            * `credit_card` - Credit Card
+            * `loan` - Loan Statement
+            * `investment` - Investment Account
+            * `other` - Other
+        bank_name:
+          type: string
+          maxLength: 100
+        password:
+          type: string
+          writeOnly: true
+          nullable: true
+          description: Password if the file has one
+          maxLength: 100
+        account_number:
+          type: string
+          maxLength: 50
+        statement_period_start:
+          type: string
+          format: date
+          nullable: true
+        statement_period_end:
+          type: string
+          format: date
+          nullable: true
+      required:
+      - file
+      - original_filename
+    BankStatementStatusEnum:
+      enum:
+      - uploaded
+      - processing
+      - extracted
+      - review_pending
+      - completed
+      - failed
+      type: string
+      description: |-
+        * `uploaded` - Uploaded
+        * `processing` - Processing
+        * `extracted` - Extracted
+        * `review_pending` - Review Pending
+        * `completed` - Completed
+        * `failed` - Failed
+    Debt:
+      type: object
+      description: Serializer for user debts.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        debt_type:
+          $ref: '#/components/schemas/DebtTypeEnum'
+        debt_type_display:
+          type: string
+          readOnly: true
+        original_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        current_balance:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        interest_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+        minimum_payment:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        due_date:
+          type: integer
+          maximum: 31
+          minimum: 1
+          description: Day of month the payment is due (1-31)
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        status:
+          $ref: '#/components/schemas/DebtStatusEnum'
+        status_display:
+          type: string
+          readOnly: true
+        creditor:
+          type: string
+          maxLength: 100
+        notes:
+          type: string
+          nullable: true
+        progress_percentage:
+          type: number
+          format: double
+          readOnly: true
+        remaining_balance:
+          type: number
+          format: double
+          readOnly: true
+        months_remaining:
+          type: number
+          format: double
+          nullable: true
+          readOnly: true
+        monthly_interest:
+          type: number
+          format: double
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - creditor
+      - current_balance
+      - debt_type
+      - debt_type_display
+      - due_date
+      - id
+      - interest_rate
+      - minimum_payment
+      - monthly_interest
+      - months_remaining
+      - name
+      - original_amount
+      - progress_percentage
+      - remaining_balance
+      - start_date
+      - status_display
+      - updated_at
+    DebtRequest:
+      type: object
+      description: Serializer for user debts.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        debt_type:
+          $ref: '#/components/schemas/DebtTypeEnum'
+        original_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        current_balance:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        interest_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+        minimum_payment:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        due_date:
+          type: integer
+          maximum: 31
+          minimum: 1
+          description: Day of month the payment is due (1-31)
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        status:
+          $ref: '#/components/schemas/DebtStatusEnum'
+        creditor:
+          type: string
+          minLength: 1
+          maxLength: 100
+        notes:
+          type: string
+          nullable: true
+      required:
+      - creditor
+      - current_balance
+      - debt_type
+      - due_date
+      - interest_rate
+      - minimum_payment
+      - name
+      - original_amount
+      - start_date
+    DebtStatusEnum:
+      enum:
+      - active
+      - paid_off
+      - defaulted
+      - in_grace
+      type: string
+      description: |-
+        * `active` - Active
+        * `paid_off` - Paid Off
+        * `defaulted` - Defaulted
+        * `in_grace` - In Grace Period
+    DebtTypeEnum:
+      enum:
+      - credit_card
+      - personal_loan
+      - mortgage
+      - auto_loan
+      - student_loan
+      - medical_debt
+      - other
+      type: string
+      description: |-
+        * `credit_card` - Credit Card
+        * `personal_loan` - Personal Loan
+        * `mortgage` - Mortgage
+        * `auto_loan` - Auto Loan
+        * `student_loan` - Student Loan
+        * `medical_debt` - Medical Debt
+        * `other` - Other
+    ExpectedGoal:
+      type: object
+      description: |-
+        Serializer for ExpectedGoal model instances.
+        Includes a calculated progress percentage property to render status bars on the frontend.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          description: Name of the financial goal
+          maxLength: 100
+        target_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: The future target amount to achieve
+        current_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: The current progress or recent status towards the target
+        start_date:
+          type: string
+          format: date
+          description: The start date for tracking this goal
+        end_date:
+          type: string
+          format: date
+          description: The target completion date for this goal
+        category:
+          type: string
+          nullable: true
+          description: Optional category this goal is linked to (e.g. Shopping, Housing)
+          maxLength: 50
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ExpectedGoalStatusEnum'
+          description: |-
+            Current tracking status of the goal
+
+            * `pending` - Pending
+            * `ongoing` - Ongoing
+            * `achieved` - Achieved
+            * `failed` - Failed
+        description:
+          type: string
+          nullable: true
+          description: Detailed context or strategy for this goal
+        progress_percentage:
+          type: number
+          format: double
+          readOnly: true
+          description: The completion progress represented as a percentage (0 - 100)
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - end_date
+      - id
+      - progress_percentage
+      - start_date
+      - target_amount
+      - title
+    ExpectedGoalRequest:
+      type: object
+      description: |-
+        Serializer for ExpectedGoal model instances.
+        Includes a calculated progress percentage property to render status bars on the frontend.
+      properties:
+        title:
+          type: string
+          minLength: 1
+          description: Name of the financial goal
+          maxLength: 100
+        target_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: The future target amount to achieve
+        current_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: The current progress or recent status towards the target
+        start_date:
+          type: string
+          format: date
+          description: The start date for tracking this goal
+        end_date:
+          type: string
+          format: date
+          description: The target completion date for this goal
+        category:
+          type: string
+          nullable: true
+          description: Optional category this goal is linked to (e.g. Shopping, Housing)
+          maxLength: 50
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ExpectedGoalStatusEnum'
+          description: |-
+            Current tracking status of the goal
+
+            * `pending` - Pending
+            * `ongoing` - Ongoing
+            * `achieved` - Achieved
+            * `failed` - Failed
+        description:
+          type: string
+          nullable: true
+          description: Detailed context or strategy for this goal
+      required:
+      - end_date
+      - start_date
+      - target_amount
+      - title
+    ExpectedGoalStatusEnum:
+      enum:
+      - pending
+      - ongoing
+      - achieved
+      - failed
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `ongoing` - Ongoing
+        * `achieved` - Achieved
+        * `failed` - Failed
+    ExtractedTransaction:
+      type: object
+      description: Serializer for extracted transactions from bank statements.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        statement:
+          type: string
+          format: uuid
+          readOnly: true
+        date:
+          type: string
+          format: date
+        raw_description:
+          type: string
+          readOnly: true
+        cleaned_description:
+          type: string
+          readOnly: true
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        transaction_type:
+          type: string
+          maxLength: 10
+        transaction_type_display:
+          type: string
+          readOnly: true
+        suggested_category:
+          type: string
+          readOnly: true
+        suggested_category_display:
+          type: string
+          readOnly: true
+        confidence_score:
+          type: number
+          format: double
+          readOnly: true
+        needs_review:
+          type: boolean
+        is_reviewed:
+          type: boolean
+        user_confirmed_category:
+          type: string
+          nullable: true
+          maxLength: 50
+        user_confirmed_type:
+          type: string
+          nullable: true
+          maxLength: 10
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        reviewed_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - amount
+      - cleaned_description
+      - confidence_score
+      - created_at
+      - date
+      - id
+      - raw_description
+      - statement
+      - suggested_category
+      - suggested_category_display
+      - transaction_type_display
+    ExtractedTransactionRequest:
+      type: object
+      description: Serializer for extracted transactions from bank statements.
+      properties:
+        date:
+          type: string
+          format: date
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        transaction_type:
+          type: string
+          minLength: 1
+          maxLength: 10
+        needs_review:
+          type: boolean
+        is_reviewed:
+          type: boolean
+        user_confirmed_category:
+          type: string
+          nullable: true
+          maxLength: 50
+        user_confirmed_type:
+          type: string
+          nullable: true
+          maxLength: 10
+        reviewed_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - amount
+      - date
+    FinancialRecord:
+      type: object
+      description: |-
+        Serializer for FinancialRecord model instances.
+        Handles data serialization/deserialization and entry validation.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        type:
+          type: string
+          description: 'Type of transaction: income, expense, or custom'
+          maxLength: 10
+        category:
+          type: string
+          description: Financial category of the transaction
+          maxLength: 50
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: Monetary value of the transaction
+        date:
+          type: string
+          format: date
+          description: Date when the transaction occurred
+        description:
+          type: string
+          nullable: true
+          description: Notes/details about this transaction
+        account_bank:
+          allOf:
+          - $ref: '#/components/schemas/AccountBankEnum'
+          description: |-
+            The bank account, card, or method used for this record
+
+            * `credit_card` - Credit Card
+            * `debit_card` - Debit Card
+            * `cash_loan` - Cash Loan
+            * `bank_loan` - Bank Loan
+            * `cash` - Cash
+            * `business_card` - Business Card
+            * `bre_b` - Bre-B (Employee Special Card)
+            * `other` - Other
+        account_bank_other:
+          type: string
+          nullable: true
+          description: Specify custom account/method when 'Other' is selected
+          maxLength: 100
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: System timestamp when this record was created
+      required:
+      - amount
+      - created_at
+      - date
+      - id
+      - type
+    FinancialRecordRequest:
+      type: object
+      description: |-
+        Serializer for FinancialRecord model instances.
+        Handles data serialization/deserialization and entry validation.
+      properties:
+        type:
+          type: string
+          minLength: 1
+          description: 'Type of transaction: income, expense, or custom'
+          maxLength: 10
+        category:
+          type: string
+          minLength: 1
+          description: Financial category of the transaction
+          maxLength: 50
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: Monetary value of the transaction
+        date:
+          type: string
+          format: date
+          description: Date when the transaction occurred
+        description:
+          type: string
+          nullable: true
+          description: Notes/details about this transaction
+        account_bank:
+          allOf:
+          - $ref: '#/components/schemas/AccountBankEnum'
+          description: |-
+            The bank account, card, or method used for this record
+
+            * `credit_card` - Credit Card
+            * `debit_card` - Debit Card
+            * `cash_loan` - Cash Loan
+            * `bank_loan` - Bank Loan
+            * `cash` - Cash
+            * `business_card` - Business Card
+            * `bre_b` - Bre-B (Employee Special Card)
+            * `other` - Other
+        account_bank_other:
+          type: string
+          nullable: true
+          description: Specify custom account/method when 'Other' is selected
+          maxLength: 100
+      required:
+      - amount
+      - date
+      - type
+    FinancialSnapshot:
+      type: object
+      description: Serializer for financial health snapshots.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        date:
+          type: string
+          format: date
+        total_income:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        total_expenses:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        net_savings:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        savings_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+        current_ratio:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        quick_ratio:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        cash_ratio:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        net_profit_margin:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        expense_ratio:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        debt_to_income:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        debt_to_asset:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        income_growth_yoy:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        expense_growth_yoy:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        net_worth_growth:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        expenses_per_category: {}
+        total_liabilities:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        total_assets:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          nullable: true
+        net_worth:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - date
+      - id
+    FinancialSnapshotRequest:
+      type: object
+      description: Serializer for financial health snapshots.
+      properties:
+        date:
+          type: string
+          format: date
+        total_income:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        total_expenses:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        net_savings:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        savings_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+        current_ratio:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        quick_ratio:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        cash_ratio:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        net_profit_margin:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        expense_ratio:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        debt_to_income:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        debt_to_asset:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        income_growth_yoy:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        expense_growth_yoy:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        net_worth_growth:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        expenses_per_category: {}
+        total_liabilities:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        total_assets:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          nullable: true
+        net_worth:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+      required:
+      - date
+    PatchedBankStatementRequest:
+      type: object
+      description: Serializer for uploaded bank statements.
+      properties:
+        file:
+          type: string
+          format: binary
+        original_filename:
+          type: string
+          minLength: 1
+          maxLength: 255
+        statement_type:
+          allOf:
+          - $ref: '#/components/schemas/StatementTypeEnum'
+          description: |-
+            Type of statement: savings, checking, credit_card, etc.
+
+            * `savings` - Savings Account
+            * `checking` - Checking Account
+            * `credit_card` - Credit Card
+            * `loan` - Loan Statement
+            * `investment` - Investment Account
+            * `other` - Other
+        bank_name:
+          type: string
+          maxLength: 100
+        password:
+          type: string
+          writeOnly: true
+          nullable: true
+          description: Password if the file has one
+          maxLength: 100
+        account_number:
+          type: string
+          maxLength: 50
+        statement_period_start:
+          type: string
+          format: date
+          nullable: true
+        statement_period_end:
+          type: string
+          format: date
+          nullable: true
+    PatchedDebtRequest:
+      type: object
+      description: Serializer for user debts.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        debt_type:
+          $ref: '#/components/schemas/DebtTypeEnum'
+        original_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        current_balance:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        interest_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+        minimum_payment:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        due_date:
+          type: integer
+          maximum: 31
+          minimum: 1
+          description: Day of month the payment is due (1-31)
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        status:
+          $ref: '#/components/schemas/DebtStatusEnum'
+        creditor:
+          type: string
+          minLength: 1
+          maxLength: 100
+        notes:
+          type: string
+          nullable: true
+    PatchedExpectedGoalRequest:
+      type: object
+      description: |-
+        Serializer for ExpectedGoal model instances.
+        Includes a calculated progress percentage property to render status bars on the frontend.
+      properties:
+        title:
+          type: string
+          minLength: 1
+          description: Name of the financial goal
+          maxLength: 100
+        target_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: The future target amount to achieve
+        current_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: The current progress or recent status towards the target
+        start_date:
+          type: string
+          format: date
+          description: The start date for tracking this goal
+        end_date:
+          type: string
+          format: date
+          description: The target completion date for this goal
+        category:
+          type: string
+          nullable: true
+          description: Optional category this goal is linked to (e.g. Shopping, Housing)
+          maxLength: 50
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ExpectedGoalStatusEnum'
+          description: |-
+            Current tracking status of the goal
+
+            * `pending` - Pending
+            * `ongoing` - Ongoing
+            * `achieved` - Achieved
+            * `failed` - Failed
+        description:
+          type: string
+          nullable: true
+          description: Detailed context or strategy for this goal
+    PatchedExtractedTransactionRequest:
+      type: object
+      description: Serializer for extracted transactions from bank statements.
+      properties:
+        date:
+          type: string
+          format: date
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        transaction_type:
+          type: string
+          minLength: 1
+          maxLength: 10
+        needs_review:
+          type: boolean
+        is_reviewed:
+          type: boolean
+        user_confirmed_category:
+          type: string
+          nullable: true
+          maxLength: 50
+        user_confirmed_type:
+          type: string
+          nullable: true
+          maxLength: 10
+        reviewed_at:
+          type: string
+          format: date-time
+          nullable: true
+    PatchedFinancialRecordRequest:
+      type: object
+      description: |-
+        Serializer for FinancialRecord model instances.
+        Handles data serialization/deserialization and entry validation.
+      properties:
+        type:
+          type: string
+          minLength: 1
+          description: 'Type of transaction: income, expense, or custom'
+          maxLength: 10
+        category:
+          type: string
+          minLength: 1
+          description: Financial category of the transaction
+          maxLength: 50
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: Monetary value of the transaction
+        date:
+          type: string
+          format: date
+          description: Date when the transaction occurred
+        description:
+          type: string
+          nullable: true
+          description: Notes/details about this transaction
+        account_bank:
+          allOf:
+          - $ref: '#/components/schemas/AccountBankEnum'
+          description: |-
+            The bank account, card, or method used for this record
+
+            * `credit_card` - Credit Card
+            * `debit_card` - Debit Card
+            * `cash_loan` - Cash Loan
+            * `bank_loan` - Bank Loan
+            * `cash` - Cash
+            * `business_card` - Business Card
+            * `bre_b` - Bre-B (Employee Special Card)
+            * `other` - Other
+        account_bank_other:
+          type: string
+          nullable: true
+          description: Specify custom account/method when 'Other' is selected
+          maxLength: 100
+    RegisterRequest:
+      type: object
+      description: |-
+        Validates and creates a new user account.
+        Passwords are validated with Django's password validators.
+      properties:
+        username:
+          type: string
+          minLength: 1
+          maxLength: 150
+        email:
+          oneOf:
+          - type: string
+            format: email
+          - type: string
+            maxLength: 0
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - password
+      - username
+    StatementTypeEnum:
+      enum:
+      - savings
+      - checking
+      - credit_card
+      - loan
+      - investment
+      - other
+      type: string
+      description: |-
+        * `savings` - Savings Account
+        * `checking` - Checking Account
+        * `credit_card` - Credit Card
+        * `loan` - Loan Statement
+        * `investment` - Investment Account
+        * `other` - Other
+    TokenObtainPairRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          writeOnly: true
+          minLength: 1
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - password
+      - username
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+      required:
+      - access
+      - refresh
+    TokenRefreshRequest:
+      type: object
+      properties:
+        refresh:
+          type: string
+          minLength: 1
+      required:
+      - refresh
+    TokenVerifyRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - token
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

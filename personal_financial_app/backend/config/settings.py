@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
+    'drf_spectacular',
     'corsheaders',
     'finance_api',
 ]
@@ -104,7 +105,7 @@ else:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+            'NAME': BASE_DIR / os.environ.get('DB_NAME', 'db.sqlite3'),
         }
     }
 
@@ -135,10 +136,23 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_THROTTLE_RATES': {
         'login': None if _TESTING else os.environ.get('THROTTLE_LOGIN', '10/min'),
         'register': None if _TESTING else os.environ.get('THROTTLE_REGISTER', '10/hour'),
     },
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Personal Finance API',
+    'DESCRIPTION': (
+        'REST API for the Personal Financial App: financial records, bank statement '
+        'PDF extraction, debts, goals, analytics snapshots, exports, and AI-powered '
+        'analysis, categorization and chat (Gemini / OpenAI / Anthropic).'
+    ),
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
 }
 
 # JWT session policy

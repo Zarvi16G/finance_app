@@ -6,6 +6,7 @@ type is auto-detected server-side.
 import { useRef, useState, type DragEvent, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import CardBox from '../shared/CardBox';
+import PageHeader from '../shared/PageHeader';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -80,17 +81,16 @@ export default function StatementUploader() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-semibold text-foreground">Upload Statement</h2>
-        <p className="text-sm text-muted-foreground">
-          Upload a PDF bank statement — transactions are extracted automatically
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Account Statement · Import"
+        title="Import a statement"
+        description="Upload a PDF bank statement — transactions are extracted automatically."
+      />
 
       <CardBox className="max-w-2xl">
         <form onSubmit={handleSubmit} className="space-y-5 p-6">
           <div
-            className={`grid cursor-pointer place-items-center rounded-xl border-2 border-dashed p-12 text-center transition ${
+            className={`grid cursor-pointer place-items-center rounded-sm border-2 border-dashed p-12 text-center transition ${
               dragging
                 ? 'border-primary bg-lightprimary'
                 : 'border-border hover:border-primary/50'

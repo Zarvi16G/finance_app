@@ -7,6 +7,7 @@ AI assistant.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import CardBox from '../shared/CardBox';
+import PageHeader from '../shared/PageHeader';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import {
@@ -185,35 +186,34 @@ export default function StatementReview() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-semibold text-foreground">Review Transactions</h2>
-          <p className="text-sm text-muted-foreground">
-            {statement?.original_filename || 'Statement'} · {pendingCount} pending confirmation
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {pendingCount > 0 && (
-            <Button variant="outline" onClick={handleAiCategorize} disabled={aiRunning}>
-              <Icon icon="solar:magic-stick-3-linear" height={18} width={18} className="mr-2" />
-              {aiRunning ? 'Categorizing…' : 'AI Categorize'}
+      <PageHeader
+        eyebrow="Account Statement · Review"
+        title="Review transactions"
+        description={`${statement?.original_filename ?? 'Statement'} · ${pendingCount} pending confirmation`}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            {pendingCount > 0 && (
+              <Button variant="outline" onClick={handleAiCategorize} disabled={aiRunning}>
+                <Icon icon="solar:magic-stick-3-linear" height={18} width={18} />
+                {aiRunning ? 'Categorizing…' : 'AI Categorize'}
+              </Button>
+            )}
+            {selected.size > 0 && (
+              <Button onClick={handleBulkConfirm}>
+                <Icon icon="solar:check-circle-linear" height={18} width={18} />
+                Confirm {selected.size} selected
+              </Button>
+            )}
+            <Button
+              variant={chatOpen ? 'secondary' : 'default'}
+              onClick={() => setChatOpen((o) => !o)}
+            >
+              <Icon icon="solar:chat-round-dots-linear" height={18} width={18} />
+              AI Assistant
             </Button>
-          )}
-          {selected.size > 0 && (
-            <Button onClick={handleBulkConfirm}>
-              <Icon icon="solar:check-circle-linear" height={18} width={18} className="mr-2" />
-              Confirm {selected.size} selected
-            </Button>
-          )}
-          <Button
-            variant={chatOpen ? 'secondary' : 'default'}
-            onClick={() => setChatOpen((o) => !o)}
-          >
-            <Icon icon="solar:chat-round-dots-linear" height={18} width={18} className="mr-2" />
-            AI Assistant
-          </Button>
-        </div>
-      </div>
+          </div>
+        }
+      />
 
       {error && <p className="rounded-md bg-error/10 px-3 py-2 text-sm text-error">{error}</p>}
 
@@ -275,7 +275,7 @@ export default function StatementReview() {
                         />
                       )}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap text-muted-foreground">
+                    <TableCell className="whitespace-nowrap font-mono text-xs tabular-nums text-muted-foreground">
                       {txn.date}
                     </TableCell>
                     <TableCell>
@@ -292,7 +292,7 @@ export default function StatementReview() {
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-right font-semibold text-foreground">
+                    <TableCell className="text-right font-mono tabular-nums text-foreground">
                       ${Number(txn.amount).toLocaleString()}
                     </TableCell>
                     <TableCell className="min-w-[150px]">
@@ -365,7 +365,7 @@ export default function StatementReview() {
               {messages.map((m, i) => (
                 <div
                   key={i}
-                  className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
+                  className={`max-w-[85%] rounded-sm px-3 py-2 text-sm ${
                     m.role === 'user'
                       ? 'ml-auto bg-primary text-primary-foreground'
                       : 'bg-muted text-foreground'

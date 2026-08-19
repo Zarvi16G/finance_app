@@ -5,6 +5,7 @@ plus custom category/type vocabulary
  */
 import { useEffect, useState, type FormEvent } from 'react';
 import CardBox from '../shared/CardBox';
+import PageHeader from '../shared/PageHeader';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -200,7 +201,7 @@ export function SettingsPanel() {
         </Button>
       </form>
 
-      <div className="rounded-lg border border-border p-4">
+      <div className="rounded-sm border border-border p-4">
         <div className="flex items-center justify-between">
           <div>
             <p className="font-medium text-foreground">API Key — {provider}</p>
@@ -271,17 +272,18 @@ export default function ProfileSettings() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-semibold text-foreground">Profile Settings</h2>
-        <p className="text-sm text-muted-foreground">Currency, categories and AI integration</p>
-      </div>
+      <PageHeader
+        eyebrow="Account Settings"
+        title="Profile & preferences"
+        description="Currency, categories and the AI assistant that reads your ledger."
+      />
 
       {error && <p className="rounded-md bg-error/10 px-3 py-2 text-sm text-error">{error}</p>}
 
       <div className="grid gap-6 xl:grid-cols-2">
         <CardBox>
           <div className="p-6">
-            <h3 className="font-semibold text-foreground">Currency & Categories</h3>
+            <h3 className="font-display text-xl font-normal text-foreground">Currency & Categories</h3>
             <form onSubmit={handleSave} className="mt-4 space-y-4">
               <div>
                 <Label htmlFor="currency">Currency Code</Label>
@@ -294,7 +296,7 @@ export default function ProfileSettings() {
                   maxLength={3}
                 />
               </div>
-              <div className="rounded-lg border border-border p-4">
+              <div className="rounded-sm border border-border p-4">
                 <p className="text-sm font-medium text-foreground">Add Transaction Type</p>
                 <div className="mt-3 flex gap-2">
                   <Input
@@ -304,7 +306,7 @@ export default function ProfileSettings() {
                   />
                 </div>
               </div>
-              <div className="rounded-lg border border-border p-4">
+              <div className="rounded-sm border border-border p-4">
                 <p className="text-sm font-medium text-foreground">Add Category</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Input
@@ -332,7 +334,7 @@ export default function ProfileSettings() {
 
         <CardBox>
           <div className="p-6">
-            <h3 className="font-semibold text-foreground">AI Assistant Settings</h3>
+            <h3 className="font-display text-xl font-normal text-foreground">AI Assistant Settings</h3>
             <div className="mt-4">
               <SettingsPanel />
             </div>
@@ -343,19 +345,19 @@ export default function ProfileSettings() {
       {settings && (
         <CardBox>
           <div className="p-6">
-            <h3 className="font-semibold text-foreground">Your Categories</h3>
+            <h3 className="font-display text-xl font-normal text-foreground">Your Categories</h3>
             <div className="mt-3 flex flex-wrap gap-2">
               {settings.categories.map((cat) => (
-                <Badge key={cat.id} variant="gray">
+                <Badge key={`${cat.id ?? 'builtin'}-${cat.type}-${cat.name}`} variant="gray">
                   {cat.name}
                   <span className="ml-1 text-xs opacity-70">({cat.type})</span>
                 </Badge>
               ))}
             </div>
-            <h3 className="mt-5 font-semibold text-foreground">Transaction Types</h3>
+            <h3 className="mt-5 font-display text-xl font-normal text-foreground">Transaction Types</h3>
             <div className="mt-3 flex flex-wrap gap-2">
               {settings.types.map((t) => (
-                <Badge key={t.id} variant="gray">
+                <Badge key={`${t.id ?? 'builtin'}-${t.name}`} variant="gray">
                   {t.name}
                 </Badge>
               ))}

@@ -49,12 +49,27 @@ pip install django \
   requests \
   pdfplumber \
   reportlab \
+  drf-spectacular \
   pillow
 
 cp .env.example .env   # if present, otherwise create .env manually (see below)
 ```
 
 There is no `requirements.txt` — the package list above is the complete dependency set.
+
+## Swagger / OpenAPI
+
+The API ships a live, auto-generated OpenAPI schema (`drf-spectacular`), available in dev mode at:
+
+- Swagger UI: `http://localhost:8000/api/schema/swagger-ui/`
+- ReDoc: `http://localhost:8000/api/schema/redoc/`
+- Raw YAML: `http://localhost:8000/api/schema/`
+
+Regenerate the committed copy in `docs/openapi.yaml`:
+
+```bash
+python manage.py spectacular --file ../docs/openapi.yaml
+```
 
 ## Run
 
@@ -80,7 +95,8 @@ Admin site: `python manage.py createsuperuser`, then `/admin/`. Management comma
 | `JWT_REFRESH_DAYS` | `7` | refresh token lifetime |
 | `THROTTLE_LOGIN` | `10/min` | login rate limit |
 | `THROTTLE_REGISTER` | `10/hour` | register rate limit |
-| `DB_ENGINE` | `sqlite` | `mysql` switches the DB; then set `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` |
+| `DB_ENGINE` | `sqlite` | `mysql` switches the DB; then set `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` |
+| `DB_NAME` | `db.sqlite3` | sqlite file name (relative to `backend/`) or MySQL database name |
 
 ## Auth
 

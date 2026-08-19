@@ -1,5 +1,6 @@
 """Serializers for bank statements and their extracted transactions."""
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 
 from ..models.statements import BankStatement, ExtractedTransaction
 
@@ -24,6 +25,7 @@ class BankStatementSerializer(serializers.ModelSerializer):
         read_only_fields = ['uploaded_at', 'processed_at', 'status', 'total_transactions_extracted', 'total_transactions_imported', 'error_message', 'content_hash']
         extra_kwargs = {'password': {'write_only': True, 'style': {'input_type': 'password'}}}
 
+    @extend_schema_field(serializers.FloatField)
     def get_file_size_mb(self, obj):
         if obj.file:
             return round(obj.file.size / (1024 * 1024), 2)

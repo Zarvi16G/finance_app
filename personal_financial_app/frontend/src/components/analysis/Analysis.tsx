@@ -5,6 +5,7 @@ records) and renders the text report.
  */
 import { useState } from 'react';
 import CardBox from '../shared/CardBox';
+import PageHeader from '../shared/PageHeader';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { aiApi } from '../../api/ai';
@@ -37,7 +38,7 @@ function renderRichText(text: string) {
 
     if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
       return (
-        <h3 key={i} className="mt-4 mb-1 font-semibold text-foreground">
+        <h3 key={i} className="mt-5 mb-1 font-display text-xl font-normal text-foreground">
           {renderInline(trimmed)}
         </h3>
       );
@@ -84,51 +85,57 @@ export default function Analysis() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-semibold text-foreground">Financial Analysis</h2>
-          <p className="text-sm text-muted-foreground">
-            AI-powered audit of your spending, savings and goals
-          </p>
-        </div>
-        <Button onClick={runAnalysis} disabled={loading}>
-          {loading ? (
-            <>
-              <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-              Analyzing…
-            </>
-          ) : (
-            <>
-              <Icon icon="solar:magic-stick-3-linear" height={18} width={18} className="mr-2" />
-              {hasRun ? 'Run Again' : 'Start Analysis'}
-            </>
-          )}
-        </Button>
-      </div>
+      <PageHeader
+        eyebrow="Auditor's Report"
+        title="Financial analysis"
+        description="An AI audit of your spending, savings and goals — run it whenever you like."
+        actions={
+          <Button onClick={runAnalysis} disabled={loading}>
+            {loading ? (
+              <>
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                Analyzing…
+              </>
+            ) : (
+              <>
+                <Icon icon="solar:magic-stick-3-linear" height={18} width={18} />
+                {hasRun ? 'Run Again' : 'Start Analysis'}
+              </>
+            )}
+          </Button>
+        }
+      />
 
       {error && <p className="rounded-md bg-error/10 px-3 py-2 text-sm text-error">{error}</p>}
 
       {!hasRun && !loading && (
-        <CardBox className="p-12 text-center">
-          <Icon
-            icon="solar:chart-square-outline"
-            height={56}
-            width={56}
-            className="mx-auto text-muted-foreground"
-          />
-          <p className="mt-4 text-foreground">
-            Run an AI analysis to get an executive health audit, budget leak analysis and
-            actionable steps.
+        <CardBox className="px-10 py-14 text-center">
+          <p className="letterhead">Report Status · Not Yet Issued</p>
+          <p className="mt-2 font-display text-2xl font-normal text-foreground md:text-3xl">
+            The books are waiting
           </p>
+          <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+            Run an analysis to get an executive health audit, budget leak analysis and actionable
+            steps — printed from your own records.
+          </p>
+          <Button onClick={runAnalysis} className="mt-6" disabled={loading}>
+            <Icon icon="solar:magic-stick-3-linear" height={18} width={18} />
+            Start Analysis
+          </Button>
         </CardBox>
       )}
 
       {hasRun && (
         <CardBox>
+          <div className="border-b border-border px-6 py-4">
+            <p className="letterhead">Auditor's Report · {new Date().toLocaleDateString()}</p>
+          </div>
           <div className="p-6">
             {usedFallback && (
               <Alert className="mb-4 border-warning bg-lightwarning text-warning">
-                <AlertTitle>Rule-based analysis</AlertTitle>
+                <AlertTitle className="font-mono text-[10px] uppercase tracking-[0.14em]">
+                  Rule-based analysis
+                </AlertTitle>
                 <AlertDescription>
                   No external AI provider responded, so the built-in expert system generated this
                   report.
@@ -139,7 +146,7 @@ export default function Analysis() {
               <Badge variant="lightPrimary">Financial Health</Badge>
               <Badge variant="lightSuccess">Actionable</Badge>
             </div>
-            <div className="mt-4 space-y-1">{renderRichText(analysis)}</div>
+            <div className="mt-4 max-w-3xl space-y-1">{renderRichText(analysis)}</div>
           </div>
         </CardBox>
       )}

@@ -2,10 +2,21 @@
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiTypes
 
 from ..models import Choice, CustomCategory, CustomType
 
 
+@extend_schema_view(
+    get=extend_schema(
+        responses={200: OpenApiTypes.OBJECT},
+        description='Lists all choices (categories and types) with their fields.',
+    ),
+    delete=extend_schema(
+        responses={204: None, 400: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},
+        description='Deletes a custom choice by id; built-in choices cannot be deleted.',
+    ),
+)
 class ChoiceView(APIView):
     def get(self, request):
         choices = Choice.objects.all().order_by('choice_type', 'sort_order', 'name')
@@ -34,6 +45,25 @@ class ChoiceView(APIView):
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
+@extend_schema_view(
+    get=extend_schema(
+        responses={200: OpenApiTypes.OBJECT},
+        description='Lists custom expense/income categories.',
+    ),
+    post=extend_schema(
+        request=OpenApiTypes.OBJECT,
+        responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT},
+        description='Creates a custom category (name, type=expense|income).',
+    ),
+    put=extend_schema(
+        request=OpenApiTypes.OBJECT,
+        responses={200: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},
+        description='Renames or re-types a custom category.',
+    ),
+    delete=extend_schema(
+        responses={204: None, 404: OpenApiTypes.OBJECT},
+    ),
+)
 class CustomCategoryView(APIView):
     def get(self, request):
         choices = Choice.objects.filter(choice_type=Choice.CATEGORY).order_by('sort_order', 'name')
@@ -73,6 +103,24 @@ class CustomCategoryView(APIView):
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
+@extend_schema_view(
+    get=extend_schema(
+        responses={200: OpenApiTypes.OBJECT},
+        description='Lists custom transaction types.',
+    ),
+    post=extend_schema(
+        request=OpenApiTypes.OBJECT,
+        responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT},
+        description='Creates a custom transaction type (name).',
+    ),
+    put=extend_schema(
+        request=OpenApiTypes.OBJECT,
+        responses={200: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},
+    ),
+    delete=extend_schema(
+        responses={204: None, 404: OpenApiTypes.OBJECT},
+    ),
+)
 class CustomTypeView(APIView):
     def get(self, request):
         choices = Choice.objects.filter(choice_type=Choice.TYPE).order_by('sort_order', 'name')

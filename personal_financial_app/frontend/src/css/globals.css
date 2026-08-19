@@ -1,8 +1,9 @@
-/* Global stylesheet: Tailwind v4 entry, template fonts and layout layers
-   kept intentionally thin — page styles live in components (Tailwind utilities). */
+/* Global stylesheet: Tailwind v4 entry, Ledgerline fonts and theme tokens.
+   Every screen is a page from a printed bank statement: green ledger paper,
+   ink-black type, hairline rules, and tabular monospaced figures. */
 
 @import 'tailwindcss';
-@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,200..800&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Gloock&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:ital,opsz,wght@0,8..144,100..900;1,8..144,100..900&display=swap');
 @import './app.css';
 
 @import './layouts/container.css' layer(utilities);
@@ -18,20 +19,20 @@ main {
   scroll-behavior: smooth;
 }
 
-body {
-  font-family: 'DM Sans', sans-serif;
-}
-
 @theme {
-  --shadow-lg: 0 1rem 3rem rgba(0, 0, 0, 0.175);
-  --shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-  --shadow-md: 0 1px 4px rgba(133, 146, 173, 0.2);
-  --shadow-btn-shadow: 0 9px 17.5px rgba(0, 0, 0, 0.05);
+  --font-sans: 'Public Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', monospace;
+  --font-display: 'Gloock', Georgia, 'Times New Roman', serif;
 
-  --radius-sm: 4px;
-  --radius-md: 7px;
-  --radius-lg: 7px;
-  --radius-tw: 12px;
+  --shadow-lg: 0 1rem 2.5rem rgba(24, 37, 28, 0.1);
+  --shadow-sm: 0 1px 2px rgba(24, 37, 28, 0.05);
+  --shadow-md: 0 2px 6px rgba(24, 37, 28, 0.06);
+  --shadow-btn-shadow: 0 1px 2px rgba(24, 37, 28, 0.08);
+
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 4px;
+  --radius-tw: 4px;
 
   --leading-21: 21px;
 
@@ -44,8 +45,8 @@ body {
 }
 
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: calc(var(--radius) - 1px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --color-background: var(--background);
@@ -81,10 +82,6 @@ body {
   --color-sidebar-ring: var(--sidebar-ring);
 
   /* custom colors */
-  --color-cyan-500: var(--primary);
-  --color-cyan-600: var(--primary);
-  --color-cyan-700: var(--primary);
-
   --color-info: var(--info);
   --color-success: var(--success);
   --color-warning: var(--warning);
@@ -106,51 +103,52 @@ body {
 }
 
 :root {
-  --radius: 10px;
-  --background: var(--white);
-  --foreground: var(--dark);
-  --card: var(--white);
-  --card-foreground: var(--link);
-  --popover: var(--white);
-  --popover-foreground: var(--link);
-  --primary: #5d87ff;
-  --primary-foreground: var(--white);
-  --secondary: #49beff;
-  --secondary-foreground: var(--white);
-  --muted: #f5f5f5;
-  --muted-foreground: #5a6a85bf;
-  --accent: var(--lightprimary);
-  --accent-foreground: var(--primary);
-  --destructive: var(--error);
-  --destructive-foreground: var(--white);
-  --border: #dfe5ef;
-  --input: #e5e7eb;
-  --ring: var(--lightprimary);
-  --chart-1: var(--primary);
-  --chart-2: var(--secondary);
-  --chart-3: var(--success);
-  --chart-4: var(--warning);
-  --chart-5: var(--error);
-  --sidebar: var(--white);
-  --sidebar-foreground: #2a3547;
-  --sidebar-primary: var(--primary);
-  --sidebar-primary-foreground: var(--white);
-  --sidebar-accent: var(--lightprimary);
-  --sidebar-accent-foreground: var(--primary);
-  --sidebar-border: var(--border);
-  --sidebar-ring: #a1a1a1;
+  --radius: 4px;
+
+  /* Ledger stock */
+  --background: #e9eee2; /* desk behind the sheets */
+  --foreground: #18251c; /* ink */
+  --card: #f7faf3; /* paper sheet */
+  --card-foreground: #18251c;
+  --popover: #f7faf3;
+  --popover-foreground: #18251c;
+  --primary: #18251c; /* ink — the primary action is a printed one */
+  --primary-foreground: #f7faf3;
+  --secondary: #5b7261; /* sage grey */
+  --secondary-foreground: #f7faf3;
+  --muted: #e1e7d8; /* pencil track */
+  --muted-foreground: #5e6b5c;
+  --accent: #e9efe1;
+  --accent-foreground: #18251c;
+  --destructive: #b23a2e;
+  --destructive-foreground: #f7faf3;
+  --border: #d3dcc9; /* ruled line */
+  --input: #d3dcc9;
+  --ring: #18251c;
+  --chart-1: #1e7a52; /* credit */
+  --chart-2: #b23a2e; /* debit */
+  --chart-3: #6b4fd8; /* stamp */
+  --chart-4: #a5670b; /* amber ink */
+  --chart-5: #3e5c76; /* slate */
+  --sidebar: #e9eee2;
+  --sidebar-foreground: #18251c;
+  --sidebar-primary: #18251c;
+  --sidebar-primary-foreground: #f7faf3;
+  --sidebar-accent: #dfe6d4;
+  --sidebar-accent-foreground: #18251c;
+  --sidebar-border: #d3dcc9;
+  --sidebar-ring: #18251c;
 
   /* CUSTOM COLORS */
-  --info: #8754ec;
-  --success: #13deb9;
-  --warning: #f6b51e;
-  --error: #ef4444;
+  --info: #6b4fd8;
+  --success: #1e7a52;
+  --warning: #a5670b;
+  --error: #b23a2e;
   --white: #ffffff;
-  --dark: #1c2536;
-  --bodytext: #5a6a85bf;
+  --dark: #0d120d;
 
   /* Light Variants */
-  --lightprimary: color-mix(in oklab, var(--primary) 12%, transparent);
+  --lightprimary: color-mix(in oklab, var(--primary) 10%, transparent);
   --lightsecondary: color-mix(in oklab, var(--secondary) 12%, transparent);
   --lightsuccess: color-mix(in oklab, var(--success) 12%, transparent);
   --lightwarning: color-mix(in oklab, var(--warning) 12%, transparent);
@@ -158,71 +156,75 @@ body {
   --lightinfo: color-mix(in oklab, var(--info) 12%, transparent);
 
   /* Emphasis Variants */
-  --primary-emphasis: color-mix(in oklab, var(--primary) 80%, black);
-  --secondary-emphasis: color-mix(in oklab, var(--secondary) 80%, black);
-  --success-emphasis: color-mix(in oklab, var(--success) 80%, black);
-  --warning-emphasis: color-mix(in oklab, var(--warning) 80%, black);
-  --error-emphasis: color-mix(in oklab, var(--error) 80%, black);
-  --info-emphasis: color-mix(in oklab, var(--info) 80%, black);
+  --primary-emphasis: color-mix(in oklab, var(--primary) 85%, black);
+  --secondary-emphasis: color-mix(in oklab, var(--secondary) 85%, black);
+  --success-emphasis: color-mix(in oklab, var(--success) 85%, black);
+  --warning-emphasis: color-mix(in oklab, var(--warning) 85%, black);
+  --error-emphasis: color-mix(in oklab, var(--error) 85%, black);
+  --info-emphasis: color-mix(in oklab, var(--info) 85%, black);
+
+  --bodytext: #5e6b5c;
 }
 
+/* The ledger after hours: ink inverts to paper, credit/debit glow slightly. */
 .dark {
-  --background: var(--dark);
-  --foreground: var(--white);
-  --card: var(--dark);
-  --card-foreground: var(--white);
-  --popover: #333f55;
-  --popover-foreground: var(--white);
-  --primary: #5d87ff;
-  --primary-foreground: var(--white);
-  --secondary: #49beff;
-  --secondary-foreground: var(--white);
-  --muted: #2a3851;
-  --muted-foreground: #7c8fac;
-  --accent: var(--accent);
-  --accent-foreground: var(--accent-foreground);
-  --destructive: var(--error);
-  --border: #333f55;
-  --input: var(--border);
-  --ring: var(--lightprimary);
-  --chart-1: var(--primary);
-  --chart-2: var(--secondary);
-  --chart-3: var(--success);
-  --chart-4: var(--warning);
-  --chart-5: var(--error);
-  --sidebar: var(--dark);
-  --sidebar-foreground: #7c8fac;
-  --sidebar-primary: var(--sidebar-primary);
-  --sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --sidebar-accent: var(--sidebar-accent);
-  --sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --sidebar-border: var(--sidebar-border);
-  --sidebar-ring: var(--sidebar-ring);
+  --background: #0d120d;
+  --foreground: #e7ede1;
+  --card: #141b14;
+  --card-foreground: #e7ede1;
+  --popover: #141b14;
+  --popover-foreground: #e7ede1;
+  --primary: #e7ede1;
+  --primary-foreground: #0d120d;
+  --secondary: #8fa393;
+  --secondary-foreground: #0d120d;
+  --muted: #202a20;
+  --muted-foreground: #8c9989;
+  --accent: #1d281e;
+  --accent-foreground: #e7ede1;
+  --destructive: #e0654f;
+  --destructive-foreground: #0d120d;
+  --border: #27342a;
+  --input: #27342a;
+  --ring: #e7ede1;
+  --chart-1: #4cc391;
+  --chart-2: #e0654f;
+  --chart-3: #9d8af0;
+  --chart-4: #d9a23f;
+  --chart-5: #7a9cc0;
+  --sidebar: #0d120d;
+  --sidebar-foreground: #e7ede1;
+  --sidebar-primary: #e7ede1;
+  --sidebar-primary-foreground: #0d120d;
+  --sidebar-accent: #1d281e;
+  --sidebar-accent-foreground: #e7ede1;
+  --sidebar-border: #27342a;
+  --sidebar-ring: #e7ede1;
 
   /* CUSTOM COLORS */
-  --info: #8754ec;
-  --success: #13deb9;
-  --warning: #f6b51e;
-  --error: #ef4444;
+  --info: #9d8af0;
+  --success: #4cc391;
+  --warning: #d9a23f;
+  --error: #e0654f;
   --white: #ffffff;
-  --dark: #1c2536;
-  --bodytext: #5a6a85bf;
+  --dark: #0d120d;
+  --bodytext: #8c9989;
 
   /* Light Variants */
-  --lightprimary: color-mix(in oklab, var(--primary) 20%, transparent);
-  --lightsecondary: color-mix(in oklab, var(--secondary) 20%, transparent);
-  --lightsuccess: color-mix(in oklab, var(--success) 20%, transparent);
-  --lightwarning: color-mix(in oklab, var(--warning) 20%, transparent);
-  --lighterror: color-mix(in oklab, var(--error) 20%, transparent);
-  --lightinfo: color-mix(in oklab, var(--info) 20%, transparent);
+  --lightprimary: color-mix(in oklab, var(--primary) 14%, transparent);
+  --lightsecondary: color-mix(in oklab, var(--secondary) 18%, transparent);
+  --lightsuccess: color-mix(in oklab, var(--success) 18%, transparent);
+  --lightwarning: color-mix(in oklab, var(--warning) 18%, transparent);
+  --lighterror: color-mix(in oklab, var(--error) 18%, transparent);
+  --lightinfo: color-mix(in oklab, var(--info) 18%, transparent);
 
   /* Emphasis Variants */
-  --primary-emphasis: color-mix(in oklab, var(--primary) 80%, black);
-  --secondary-emphasis: color-mix(in oklab, var(--secondary) 80%, black);
-  --success-emphasis: color-mix(in oklab, var(--success) 80%, black);
-  --warning-emphasis: color-mix(in oklab, var(--warning) 80%, black);
-  --error-emphasis: color-mix(in oklab, var(--error) 80%, black);
-  --info-emphasis: color-mix(in oklab, var(--info) 80%, black);
+  --primary-emphasis: color-mix(in oklab, var(--primary) 78%, white);
+  --secondary-emphasis: color-mix(in oklab, var(--secondary) 78%, white);
+  --success-emphasis: color-mix(in oklab, var(--success) 78%, white);
+  --warning-emphasis: color-mix(in oklab, var(--warning) 78%, white);
+  --error-emphasis: color-mix(in oklab, var(--error) 78%, white);
+  --info-emphasis: color-mix(in oklab, var(--info) 78%, white);
 }
 
 @layer base {
@@ -246,7 +248,7 @@ body {
 
 @utility form-control {
   & input {
-    @apply border rounded-md border-border bg-transparent ring-transparent dark:ring-transparent dark:bg-transparent w-full text-sm;
+    @apply border rounded-sm border-border bg-transparent ring-transparent dark:ring-transparent dark:bg-transparent w-full text-sm;
   }
 
   & input:focus {
@@ -259,7 +261,7 @@ body {
 }
 
 @utility form-control-textarea {
-  @apply rounded-md border border-border bg-transparent dark:bg-transparent w-full text-sm p-4;
+  @apply rounded-sm border border-border bg-transparent dark:bg-transparent w-full text-sm p-4;
 
   &:focus {
     @apply border-primary dark:border-primary outline-hidden shadow-none ring-offset-0 ring-transparent;
@@ -278,6 +280,12 @@ body {
   @apply hover:bg-lightprimary;
 }
 
+/* Letterhead: the statement heading convention used on every page.
+   Mono uppercase eyebrow, Gloock serif title, hairline rule below. */
+@utility letterhead {
+  @apply font-mono text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground;
+}
+
 @layer utilities {
   .left-part {
     @apply p-6 border-e border-border;
@@ -286,7 +294,7 @@ body {
 
 @layer components {
   body {
-    @apply text-sm overflow-x-hidden;
+    @apply text-sm overflow-x-hidden antialiased;
   }
 
   /*heading text color*/

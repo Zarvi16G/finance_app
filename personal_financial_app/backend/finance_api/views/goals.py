@@ -2,6 +2,7 @@
 from rest_framework import status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from drf_spectacular.utils import extend_schema, OpenApiTypes
 
 from ..models import ExpectedGoal
 from ..serializers import ExpectedGoalSerializer
@@ -16,6 +17,10 @@ class ExpectedGoalViewSet(viewsets.ModelViewSet):
     serializer_class = ExpectedGoalSerializer
 
 
+@extend_schema(
+    responses={200: OpenApiTypes.OBJECT},
+    description='Financial goals analysis grouped by category: total target/current per category plus overall summary.',
+)
 class GoalsAnalysisView(APIView):
     """
     API endpoint that provides financial goals analysis grouped by category.

@@ -1,5 +1,48 @@
 /* Template-wide app styles (theme CSS variables and base component rules). */
 
+/* Ruled ledger paper, for the blank desk behind auth sheets. */
+.ledger-ruled {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 31px,
+    rgba(24, 37, 28, 0.045) 31px,
+    rgba(24, 37, 28, 0.045) 32px
+  );
+}
+
+.dark .ledger-ruled {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 31px,
+    rgba(231, 237, 225, 0.05) 31px,
+    rgba(231, 237, 225, 0.05) 32px
+  );
+}
+
+/* The register "prints" its rows on load, one line at a time. */
+@keyframes ledger-print {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.ledger-print-row {
+  animation: ledger-print 0.45s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ledger-print-row {
+    animation: none;
+  }
+}
+
 .feature-card img {
   width: 100%;
   object-fit: cover;

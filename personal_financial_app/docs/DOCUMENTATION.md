@@ -2,6 +2,8 @@
 
 In-depth documentation for the Personal Financial App. For quick-start instructions see the [root README](../README.md); for the REST API reference see [backend/README.md](../backend/README.md).
 
+Companion documents: [OpenAPI schema (Swagger)](openapi.yaml) for the full machine-readable API contract, and the [frontend record](frontend/architecture-design.md) for the React app's architecture, routes, data flows and known gaps.
+
 ## Table of Contents
 
 1. [Architecture Overview](#architecture-overview)

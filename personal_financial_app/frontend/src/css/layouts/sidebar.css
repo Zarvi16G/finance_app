@@ -1,6 +1,21 @@
-/* tailwind-sidebar package override styles */
-[data-slot='collapsible'] [data-slot='sidebar-menu-item'] [data-slot='sidebar-menu-button']:hover {
-  background-color: transparent !important;
+/* tailwind-sidebar package override styles — strip the packaged chrome,
+   keep the paper. */
+
+[data-slot='sidebar-menu-button'] {
+  border-radius: 2px;
+  box-shadow: none;
+}
+
+[data-slot='sidebar-menu-button']:hover {
+  background-color: var(--lightprimary) !important;
+  color: var(--sidebar-foreground) !important;
+}
+
+/* Active page: a green balance rule on the left, like a ticked ledger line. */
+[data-slot='sidebar-menu-button'][data-active='true'] {
+  background-color: var(--lightprimary) !important;
+  color: var(--sidebar-primary) !important;
+  box-shadow: inset 2px 0 0 var(--success);
 }
 
 [data-slot='badge'] {

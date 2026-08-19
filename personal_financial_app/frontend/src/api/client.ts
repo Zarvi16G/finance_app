@@ -20,6 +20,11 @@ export const apiClient = axios.create({
 let isRefreshing = false;
 let queue: Array<(token: string | null) => void> = [];
 
+const isAuthCall = (url?: string) => {
+  if (!url) return false;
+  return /\/auth\/(login|register|refresh|logout)\/?$/.test(url);
+};
+
 const flushQueue = (token: string | null) => {
   queue.forEach((cb) => cb(token));
   queue = [];
@@ -38,7 +43,7 @@ apiClient.interceptors.response.use(
   (error: AxiosError) => {
     const original = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-    if (error.response?.status === 401 && !original?._retry) {
+    if (error.response?.status === 401 && !original?._retry && !isAuthCall(original?.url)) {
       const refreshToken = localStorage.getItem('refresh_token');
       if (!refreshToken) {
         localStorage.removeItem('access_token');

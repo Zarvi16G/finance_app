@@ -6,6 +6,7 @@ download actions.
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import CardBox from '../shared/CardBox';
+import PageHeader from '../shared/PageHeader';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import {
@@ -117,20 +118,19 @@ export default function StatementList() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold text-foreground">Bank Statements</h2>
-          <p className="text-sm text-muted-foreground">
-            Uploaded statements and extraction status
-          </p>
-        </div>
-        <Button asChild>
-          <Link to="/statements/upload">
-            <Icon icon="solar:upload-linear" height={18} width={18} className="mr-2" />
-            Upload Statement
-          </Link>
-        </Button>
-      </div>
+      <PageHeader
+        eyebrow="Transaction Ledger · Imports"
+        title="Bank statements"
+        description="Uploaded statements and extraction status — import a PDF to add transactions."
+        actions={
+          <Button asChild>
+            <Link to="/statements/upload">
+              <Icon icon="solar:upload-linear" height={18} width={18} />
+              Upload Statement
+            </Link>
+          </Button>
+        }
+      />
 
       {error && <p className="rounded-md bg-error/10 px-3 py-2 text-sm text-error">{error}</p>}
 

@@ -3,7 +3,9 @@
 summary tiles and payoff progress tracking.
  */
 import { useEffect, useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import CardBox from '../shared/CardBox';
+import PageHeader from '../shared/PageHeader';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -33,7 +35,9 @@ import {
   TableRow,
 } from '../ui/table';
 import { debtsApi, type DebtInput } from '../../api/debts';
+import { profileApi } from '../../api/profile';
 import { getErrorMessage } from '../../api/client';
+import { fmtMoney } from '../../lib/money';
 import type { Debt } from '../../types';
 import { Icon } from '@iconify/react';
 
@@ -68,6 +72,11 @@ export default function DebtRegistry() {
   const [editing, setEditing] = useState<Debt | null>(null);
   const [form, setForm] = useState<DebtInput>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [currency, setCurrency] = useState('USD');
+
+  useEffect(() => {
+    profileApi.get().then((s) => setCurrency(s.currency || 'USD')).catch(() => {});
+  }, []);
 
   const fetchDebts = async () => {
     setLoading(true);
@@ -145,16 +154,17 @@ export default function DebtRegistry() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold text-foreground">Debt Registry</h2>
-          <p className="text-sm text-muted-foreground">Track balances, interest and payments</p>
-        </div>
-        <Button onClick={openCreate}>
-          <Icon icon="solar:add-circle-linear" height={18} width={18} className="mr-2" />
-          Add Debt
-        </Button>
-      </div>
+      <PageHeader
+        eyebrow="Liabilities Ledger"
+        title="Debt registry"
+        description="Track balances, interest and payments — everything you owe, in one column."
+        actions={
+          <Button onClick={openCreate}>
+            <Icon icon="solar:add-circle-linear" height={18} width={18} />
+            Add Debt
+          </Button>
+        }
+      />
 
       {error && <p className="rounded-md bg-error/10 px-3 py-2 text-sm text-error">{error}</p>}
 
@@ -162,24 +172,30 @@ export default function DebtRegistry() {
         <div className="grid gap-6 md:grid-cols-3">
           <CardBox>
             <div className="p-5">
-              <p className="text-sm text-muted-foreground">Total Balance</p>
-              <p className="text-2xl font-semibold text-foreground">
-                ${totalBalance.toLocaleString()}
+              <p className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                Total Balance
+              </p>
+              <p className="mt-1 font-mono text-2xl font-medium tabular-nums text-foreground">
+                {fmtMoney(totalBalance, currency)}
               </p>
             </div>
           </CardBox>
           <CardBox>
             <div className="p-5">
-              <p className="text-sm text-muted-foreground">Minimum Payments / Month</p>
-              <p className="text-2xl font-semibold text-foreground">
-                ${totalMinPayment.toLocaleString()}
+              <p className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                Min. Payments / Month
+              </p>
+              <p className="mt-1 font-mono text-2xl font-medium tabular-nums text-foreground">
+                {fmtMoney(totalMinPayment, currency)}
               </p>
             </div>
           </CardBox>
           <CardBox>
             <div className="p-5">
-              <p className="text-sm text-muted-foreground">Active Debts</p>
-              <p className="text-2xl font-semibold text-foreground">
+              <p className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                Active Debts
+              </p>
+              <p className="mt-1 font-mono text-2xl font-medium tabular-nums text-foreground">
                 {debts.filter((d) => d.status === 'active').length}
               </p>
             </div>
@@ -220,25 +236,32 @@ export default function DebtRegistry() {
               {debts.map((debt) => (
                 <TableRow key={debt.id}>
                   <TableCell>
-                    <p className="font-medium text-foreground">{debt.name}</p>
+                    <Link
+                      to={`/debts/${debt.id}`}
+                      className="font-medium text-foreground hover:underline"
+                    >
+                      {debt.name}
+                    </Link>
                     <p className="text-xs text-muted-foreground">{debt.creditor}</p>
                   </TableCell>
                   <TableCell>{debt.debt_type_display}</TableCell>
-                  <TableCell className="text-right font-semibold text-foreground">
-                    ${Number(debt.current_balance).toLocaleString()}
+                  <TableCell className="text-right font-mono font-semibold tabular-nums text-foreground">
+                    {fmtMoney(Number(debt.current_balance), currency)}
                   </TableCell>
-                  <TableCell className="text-right">{debt.interest_rate}%</TableCell>
-                  <TableCell className="text-right">
-                    ${Number(debt.minimum_payment).toLocaleString()}
+                  <TableCell className="text-right font-mono tabular-nums">
+                    {debt.interest_rate}%
+                  </TableCell>
+                  <TableCell className="text-right font-mono tabular-nums">
+                    {fmtMoney(Number(debt.minimum_payment), currency)}
                   </TableCell>
                   <TableCell className="min-w-[140px]">
-                    <div className="h-2 overflow-hidden rounded-full bg-muted">
+                    <div className="h-2 overflow-hidden rounded-sm bg-muted">
                       <div
-                        className="h-full rounded-full bg-primary"
+                        className="h-full rounded-sm bg-success"
                         style={{ width: `${Math.min(debt.progress_percentage, 100)}%` }}
                       />
                     </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                       {debt.progress_percentage}% paid
                     </p>
                   </TableCell>

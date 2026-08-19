@@ -5,6 +5,7 @@ bars plus overall/category analytics from
  */
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import CardBox from '../shared/CardBox';
+import PageHeader from '../shared/PageHeader';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -19,7 +20,9 @@ import {
   DialogTitle,
 } from '../ui/dialog';
 import { goalsApi } from '../../api/goals';
+import { profileApi } from '../../api/profile';
 import { getErrorMessage } from '../../api/client';
+import { fmtMoney } from '../../lib/money';
 import type { ExpectedGoal, GoalsAnalysis } from '../../types';
 import { Icon } from '@iconify/react';
 
@@ -41,6 +44,11 @@ export default function GoalsList() {
   const [editing, setEditing] = useState<ExpectedGoal | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [currency, setCurrency] = useState('USD');
+
+  useEffect(() => {
+    profileApi.get().then((s) => setCurrency(s.currency || 'USD')).catch(() => {});
+  }, []);
 
   const fetchData = async () => {
     try {
@@ -132,16 +140,17 @@ export default function GoalsList() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold text-foreground">Financial Goals</h2>
-          <p className="text-sm text-muted-foreground">Track your savings targets</p>
-        </div>
-        <Button onClick={openCreate}>
-          <Icon icon="solar:add-circle-linear" height={18} width={18} className="mr-2" />
-          New Goal
-        </Button>
-      </div>
+      <PageHeader
+        eyebrow="Reserve Ledger"
+        title="Savings goals"
+        description="Track your savings targets — what you are setting aside, and why."
+        actions={
+          <Button onClick={openCreate}>
+            <Icon icon="solar:add-circle-linear" height={18} width={18} />
+            New Goal
+          </Button>
+        }
+      />
 
       {error && <p className="rounded-md bg-error/10 px-3 py-2 text-sm text-error">{error}</p>}
 
@@ -151,19 +160,23 @@ export default function GoalsList() {
         <>
           {analysis && (
             <CardBox>
-              <div className="flex flex-wrap items-center justify-between gap-4 p-5">
+              <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">Overall Progress</p>
-                  <p className="text-2xl font-semibold text-foreground">{overallProgress}%</p>
+                  <p className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                    Overall Progress
+                  </p>
+                  <p className="mt-1 font-mono text-2xl font-medium tabular-nums text-foreground">
+                    {overallProgress}%
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="secondary">
                     {analysis.summary.achieved_goals} / {analysis.summary.total_goals} achieved
                   </Badge>
                 </div>
-                <div className="h-2 w-64 max-w-full overflow-hidden rounded-full bg-muted">
+                <div className="h-1.5 w-64 max-w-full overflow-hidden rounded-sm bg-muted">
                   <div
-                    className="h-full rounded-full bg-primary transition-all"
+                    className="h-full rounded-sm bg-success transition-all"
                     style={{ width: `${overallProgress}%` }}
                   />
                 </div>
@@ -200,22 +213,26 @@ export default function GoalsList() {
 
                     <div className="mt-4 flex items-end justify-between">
                       <div>
-                        <p className="text-xs text-muted-foreground">Current</p>
-                        <p className="text-lg font-semibold text-foreground">
-                          ${Number(goal.current_amount).toLocaleString()}
+                        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                          Current
+                        </p>
+                        <p className="mt-0.5 font-mono text-lg font-medium tabular-nums text-foreground">
+                          {fmtMoney(Number(goal.current_amount), currency)}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs text-muted-foreground">Target</p>
-                        <p className="text-lg font-semibold text-foreground">
-                          ${Number(goal.target_amount).toLocaleString()}
+                        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                          Target
+                        </p>
+                        <p className="mt-0.5 font-mono text-lg font-medium tabular-nums text-foreground">
+                          {fmtMoney(Number(goal.target_amount), currency)}
                         </p>
                       </div>
                     </div>
 
-                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+                    <div className="mt-3 h-2 overflow-hidden rounded-sm bg-muted">
                       <div
-                        className="h-full rounded-full bg-success transition-all"
+                        className="h-full rounded-sm bg-success transition-all"
                         style={{ width: `${Math.min(goal.progress_percentage, 100)}%` }}
                       />
                     </div>

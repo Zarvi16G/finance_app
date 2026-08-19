@@ -6,11 +6,19 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenRefreshView
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiTypes
 
 from ..serializers.auth import RegisterSerializer
 from ..services import auth_service
 
 
+@extend_schema_view(
+    post=extend_schema(
+        request=RegisterSerializer,
+        responses={201: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT},
+        description='Creates a new account and returns the JWT pair + user so the client is signed in immediately.',
+    )
+)
 class RegisterView(APIView):
     """
     POST /api/auth/register/
@@ -49,6 +57,13 @@ class RegisterView(APIView):
         )
 
 
+@extend_schema_view(
+    post=extend_schema(
+        request=TokenObtainPairSerializer,
+        responses={200: OpenApiTypes.OBJECT, 401: OpenApiTypes.OBJECT},
+        description='Exchanges username + password for a JWT pair and the user profile.',
+    )
+)
 class LoginView(APIView):
     """
     POST /api/auth/login/
@@ -68,6 +83,13 @@ class LoginView(APIView):
         )
 
 
+@extend_schema_view(
+    post=extend_schema(
+        request=OpenApiTypes.OBJECT,
+        responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT},
+        description='Revokes the refresh token (requires auth, refresh sent in the body).',
+    )
+)
 class LogoutView(APIView):
     """
     POST /api/auth/logout/
@@ -83,6 +105,12 @@ class LogoutView(APIView):
         return Response({'message': 'Logged out successfully.'})
 
 
+@extend_schema_view(
+    get=extend_schema(
+        responses={200: OpenApiTypes.OBJECT},
+        description='Returns the profile of the token owner.',
+    )
+)
 class MeView(APIView):
     """
     GET /api/auth/me/

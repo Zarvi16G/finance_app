@@ -15,6 +15,7 @@ import StatementList from './components/statements/StatementList';
 import StatementUploader from './components/statements/StatementUploader';
 import StatementReview from './components/statements/StatementReview';
 import DebtRegistry from './components/debts/DebtRegistry';
+import DebtDetail from './components/debts/DebtDetail';
 import GoalsList from './components/goals/GoalsList';
 import Analysis from './components/analysis/Analysis';
 import ProfileSettings from './components/profile/ProfileSettings';
@@ -36,6 +37,7 @@ function App() {
               <Route path="/statements/upload" element={<StatementUploader />} />
               <Route path="/statements/:id/review" element={<StatementReview />} />
               <Route path="/debts" element={<DebtRegistry />} />
+              <Route path="/debts/:id" element={<DebtDetail />} />
               <Route path="/goals" element={<GoalsList />} />
               <Route path="/analysis" element={<Analysis />} />
               <Route path="/profile" element={<ProfileSettings />} />

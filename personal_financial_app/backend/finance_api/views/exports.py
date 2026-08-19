@@ -4,6 +4,7 @@ import csv
 from django.db.models import Sum
 from django.http import HttpResponse
 from rest_framework.views import APIView
+from drf_spectacular.utils import extend_schema, OpenApiTypes
 
 from ..models import FinancialRecord
 from ..services.filters import apply_filters_to_queryset
@@ -15,6 +16,10 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 
+@extend_schema(
+    responses={200: OpenApiTypes.OBJECT},
+    description='Generates a downloadable CSV extract of the filtered financial records.',
+)
 class ExportCSVView(APIView):
     """
     API endpoint that generates a downloadable CSV extract.
@@ -49,6 +54,10 @@ class ExportCSVView(APIView):
         return response
 
 
+@extend_schema(
+    responses={200: OpenApiTypes.OBJECT},
+    description='Generates a downloadable PDF statement of the filtered financial records (totals + ledger table).',
+)
 class ExportPDFView(APIView):
     """
     API endpoint that builds a beautiful PDF extract statement.

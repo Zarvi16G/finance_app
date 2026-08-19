@@ -2,12 +2,21 @@
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from drf_spectacular.utils import extend_schema, OpenApiTypes
 
 from ..models import FinancialRecord, ExpectedGoal
 from ..services.analysis_service import run_financial_analysis
 from ..services.filters import apply_filters_to_queryset
 
 
+@extend_schema(
+    request=OpenApiTypes.OBJECT,
+    responses={200: OpenApiTypes.OBJECT, 503: OpenApiTypes.OBJECT},
+    description=(
+        'Runs a smart financial analysis over the filtered records and goals, returning '
+        'an executive health audit, budget leak analysis and actionable steps.'
+    ),
+)
 class AIAnalysisView(APIView):
     """
     API endpoint that performs smart financial data analyses.

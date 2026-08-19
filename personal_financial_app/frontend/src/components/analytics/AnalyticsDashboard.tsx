@@ -1,16 +1,18 @@
 /**
- * Dashboard (home page).
+ * Dashboard (home page) — rendered as a monthly cash-flow statement.
  *
- * Fetches from two complementary sources in parallel:
- *  - /analytics/ (analyticsApi) — served from the monthly snapshot cache,
- *    powers the category pie, financial ratios and the debt summary tile;
- *  - /records/ (recordsApi) — live records, powers the income/expense series
- *    and the net trend chart, which the snapshot cache cannot render.
+ *  - Letterhead: period strip behaves like a "statement period" field.
+ *  - Stat tiles are ledger lines: mono figures on ruled sheets.
+ *  - The Running Balance register (the signature element) lists live
+ *    records as statement rows with an accumulating balance column.
+ *  - Charts use theme tokens so they follow light/dark ink.
  *
- * Series granularity is chosen automatically: spans of 45 days or less are
- * rendered per-day, longer spans are bucketed per month (see buildSeries).
+ * Data sources (unchanged):
+ *  - /analytics/ (analyticsApi) — snapshot cache: category pie, ratios, debt summary
+ *  - /records/ (recordsApi) — live records: income/expense series, net trend, register
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Area,
   AreaChart,
@@ -18,7 +20,6 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -27,15 +28,22 @@ import {
   YAxis,
 } from 'recharts';
 import CardBox from '../shared/CardBox';
+import PageHeader from '../shared/PageHeader';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { analyticsApi } from '../../api/ai';
-import { recordsApi } from '../../api/profile';
+import { recordsApi, profileApi } from '../../api/profile';
 import { getErrorMessage } from '../../api/client';
+import { fmtMoney } from '../../lib/money';
 import type { DashboardData, FinancialRecord } from '../../types';
 import { Icon } from '@iconify/react';
 
-const PIE_COLORS = ['#5d87ff', '#49bdbe', '#66d19e', '#ffae1f', '#fa896b', '#5a6a85', '#ff6692'];
+const CHART_TOKENS = ['--chart-1', '--chart-2', '--chart-3', '--chart-4', '--chart-5', '--info'];
+
+const cssVar = (name: string) =>
+  getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#18251c';
+
+const chartColor = (i: number) => cssVar(CHART_TOKENS[i % CHART_TOKENS.length]);
 
 const toISODate = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -71,7 +79,7 @@ function resolvePreset(key: PresetKey): { start?: string; end?: string; all: boo
       return { ...monthRange(now), all: false };
     }
     case 'quarter': {
-      const quarterStartMonth = Math.floor(now.getMonth() / 3) - 3; // last complete quarter
+      const quarterStartMonth = Math.floor(now.getMonth() / 3) - 3;
       const start = new Date(now.getFullYear(), quarterStartMonth, 1);
       const end = new Date(now.getFullYear(), quarterStartMonth + 3, 0);
       return { start: toISODate(start), end: toISODate(end), all: false };
@@ -93,10 +101,6 @@ interface SeriesPoint {
 }
 
 function buildSeries(records: FinancialRecord[], startDate: string, endDate: string): SeriesPoint[] {
-  // Bucket records two ways (by day and by month) up front, then choose which
-  // to render based on the requested span: <=45 days -> one point per day
-  // (with a full contiguous calendar so zero days still show), otherwise one
-  // point per month, filled to cover every month in the range.
   const start = new Date(`${startDate}T00:00:00`);
   const end = new Date(`${endDate}T00:00:00`);
   const days = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
@@ -148,48 +152,82 @@ function buildSeries(records: FinancialRecord[], startDate: string, endDate: str
   return points;
 }
 
-function StatCard({
+/* ---- motion helpers ------------------------------------------------------ */
+
+const prefersReducedMotion = () =>
+  typeof window !== 'undefined' &&
+  window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+
+function useCountUp(target: number, duration = 800) {
+  const [value, setValue] = useState(0);
+  useEffect(() => {
+    if (prefersReducedMotion()) {
+      setValue(target);
+      return;
+    }
+    let raf = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setValue(target * eased);
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration]);
+  return value;
+}
+
+/* ---- ledger primitives --------------------------------------------------- */
+
+function LedgerStat({
   label,
   value,
+  sign,
+  tone = 'ink',
   sub,
-  icon,
-  tone = 'primary',
 }: {
   label: string;
   value: string;
+  sign?: string;
+  tone?: 'ink' | 'credit' | 'debit';
   sub?: string;
-  icon: string;
-  tone?: 'primary' | 'success' | 'warning' | 'error';
 }) {
-  const toneBg =
-    tone === 'success'
-      ? 'bg-lightsuccess text-success'
-      : tone === 'warning'
-        ? 'bg-lightwarning text-warning'
-        : tone === 'error'
-          ? 'bg-lighterror text-error'
-          : 'bg-lightprimary text-primary';
-
+  const color =
+    tone === 'credit' ? 'text-success' : tone === 'debit' ? 'text-error' : 'text-foreground';
   return (
-    <CardBox>
-      <div className="p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-muted-foreground">{label}</p>
-            <p className="mt-1 text-2xl font-semibold text-foreground">{value}</p>
-            {sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
-          </div>
-          <span className={`grid h-12 w-12 place-items-center rounded-lg ${toneBg}`}>
-            <Icon icon={icon} height={22} width={22} />
-          </span>
-        </div>
+    <CardBox className="overflow-hidden">
+      <div className="flex items-center justify-between px-5 pt-4 pb-2">
+        <span className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+          {label}
+        </span>
+        <span className="h-1.5 w-1.5 rounded-full bg-border" aria-hidden="true" />
+      </div>
+      <div className="border-t border-border px-5 py-3">
+        <p className={`font-mono text-2xl font-medium tabular-nums ${color}`}>
+          {sign && <span className="mr-0.5">{sign}</span>}
+          {value}
+        </p>
+        {sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
       </div>
     </CardBox>
   );
 }
 
-const fmtMoney = (v: number | undefined | null) =>
-  `$${(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+const shortDate = (iso: string) => {
+  const d = new Date(`${iso}T00:00:00`);
+  return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+interface RegisterRow {
+  id: number;
+  date: string;
+  description: string;
+  amount: number;
+  type: string;
+  balance: number;
+}
 
 export default function AnalyticsDashboard() {
   const [preset, setPreset] = useState<PresetKey>('last_month');
@@ -198,6 +236,8 @@ export default function AnalyticsDashboard() {
   const [allTime, setAllTime] = useState(false);
   const [analytics, setAnalytics] = useState<DashboardData | null>(null);
   const [series, setSeries] = useState<SeriesPoint[]>([]);
+  const [records, setRecords] = useState<FinancialRecord[]>([]);
+  const [currency, setCurrency] = useState('USD');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -211,36 +251,37 @@ export default function AnalyticsDashboard() {
 
   useEffect(() => {
     applyPreset('last_month');
+    profileApi
+      .get()
+      .then((s) => setCurrency(s.currency || 'USD'))
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError('');
-    // "All time" sends no date params: analytics falls back to the full
-    // monthly trend and records returns everything.
     const params = allTime
       ? undefined
       : { start_date: startDate, end_date: endDate };
     try {
-      const [analyticsData, records] = await Promise.all([
+      const [analyticsData, recordsData] = await Promise.all([
         analyticsApi.dashboard(params),
         recordsApi.list(params),
       ]);
       setAnalytics(analyticsData);
-      // For "All time" the series span comes from the min/max record dates,
-      // otherwise it is exactly the chosen From/To range.
+      setRecords(recordsData);
       const span =
-        allTime && records.length > 0
+        allTime && recordsData.length > 0
           ? {
-              start: records.map((r) => r.date).sort()[0],
-              end: records.map((r) => r.date).sort().at(-1) ?? '',
+              start: recordsData.map((r) => r.date).sort()[0],
+              end: recordsData.map((r) => r.date).sort().at(-1) ?? '',
             }
           : { start: startDate, end: endDate };
-      if (allTime && records.length === 0) {
+      if (allTime && recordsData.length === 0) {
         setSeries([]);
       } else {
-        setSeries(buildSeries(records, span.start, span.end));
+        setSeries(buildSeries(recordsData, span.start, span.end));
       }
     } catch (err) {
       setError(getErrorMessage(err));
@@ -255,8 +296,6 @@ export default function AnalyticsDashboard() {
     }
   }, [fetchData, startDate, endDate, allTime]);
 
-  // Money tiles are derived from the live record series (definitive source);
-  // the snapshot cache only feeds breakdowns and ratios.
   const totals = useMemo(() => {
     const income = series.reduce((sum, p) => sum + p.income, 0);
     const expenses = series.reduce((sum, p) => sum + p.expenses, 0);
@@ -268,6 +307,31 @@ export default function AnalyticsDashboard() {
       savingsRate: income > 0 ? (net / income) * 100 : 0,
     };
   }, [series]);
+
+  /* The running balance register — oldest to newest, closing at the end. */
+  const register = useMemo<RegisterRow[]>(() => {
+    const sorted = [...records].sort(
+      (a, b) => a.date.localeCompare(b.date) || a.id - b.id,
+    );
+    let balance = 0;
+    const rows: RegisterRow[] = [];
+    for (const r of sorted) {
+      const amount = r.type === 'expense' ? -Math.abs(Number(r.amount) || 0) : Math.abs(Number(r.amount) || 0);
+      balance += amount;
+      rows.push({
+        id: r.id,
+        date: r.date,
+        description: r.description || r.category,
+        amount,
+        type: r.type,
+        balance,
+      });
+    }
+    return rows;
+  }, [records]);
+  const registerPage = register.length > 12 ? register.slice(-12) : register;
+  const registerCount = register.length;
+  const registerTotal = register.length > 0 ? register[register.length - 1].balance : 0;
 
   const categories = useMemo(() => {
     const map = new Map<string, { total: number; count: number }>();
@@ -282,12 +346,9 @@ export default function AnalyticsDashboard() {
   const ratios = analytics?.financial_ratios;
   const debtSummary = analytics?.debt_summary;
   const dayMode = series.length > 0 && series.length <= 45;
-  const periodLabel = allTime
-    ? 'All time'
-    : `${startDate} → ${endDate}`;
+  const periodLabel = allTime ? 'All time' : `${startDate} → ${endDate}`;
+  const hasAny = records.length > 0 || (categories.length > 0 && !loading);
 
-  // Chevron navigation walks one month at a time and keeps the From/To dates
-  // aligned to that month's start/end, regardless of the active preset.
   const shiftMonth = (delta: number) => {
     const base = new Date(`${startDate || toISODate(today())}T00:00:00`);
     const next = monthRange(new Date(base.getFullYear(), base.getMonth() + delta, 1));
@@ -303,24 +364,63 @@ export default function AnalyticsDashboard() {
       ? `Daily Income vs Expenses — ${startDate.slice(0, 7)}`
       : `Income vs Expenses — ${startDate} to ${endDate}`;
 
+  const tooltipStyle = {
+    background: 'var(--card)',
+    border: '1px solid var(--border)',
+    borderRadius: 2,
+    fontSize: 12,
+    fontFamily: "'IBM Plex Mono', monospace",
+  } as const;
+
+  const axisTick = {
+    fontFamily: "'IBM Plex Mono', monospace",
+    fontSize: 10,
+    fill: 'var(--muted-foreground)',
+  } as const;
+
+  const animatedIncome = useCountUp(totals.income);
+  const animatedExpenses = useCountUp(totals.expenses);
+  const animatedNet = useCountUp(totals.net);
+  const animatedRate = useCountUp(Math.abs(totals.savingsRate));
+
   return (
     <div className="space-y-6">
-      <CardBox>
-        <div className="flex flex-wrap items-center justify-between gap-4 p-4">
+      <PageHeader
+        eyebrow="Cash Flow Statement"
+        title="Your money, in and out"
+        description="What came in, what went out, and what is left — over the selected period."
+        actions={
+          <Button asChild variant="outline" size="sm">
+            <Link to="/statements/upload">
+              <Icon icon="solar:upload-linear" height={16} width={16} />
+              Import statement
+            </Link>
+          </Button>
+        }
+      />
+
+      {/* Statement period strip */}
+      <CardBox className="px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
+            <span className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground mr-1">
+              Period
+            </span>
             <Button
               variant="outline"
               size="icon"
               onClick={() => shiftMonth(-1)}
               aria-label="Previous month"
+              className="h-8 w-8"
             >
-              <Icon icon="solar:alt-arrow-left-linear" height={18} width={18} />
+              <Icon icon="solar:alt-arrow-left-linear" height={15} width={15} />
             </Button>
             {PRESETS.map((p) => (
               <Button
                 key={p.key}
                 variant={preset === p.key && !allTime ? 'default' : 'outline'}
                 size="sm"
+                className="h-8 font-mono text-[11px] uppercase tracking-[0.08em]"
                 onClick={() => applyPreset(p.key)}
               >
                 {p.label}
@@ -331,17 +431,18 @@ export default function AnalyticsDashboard() {
               size="icon"
               onClick={() => shiftMonth(1)}
               aria-label="Next month"
+              className="h-8 w-8"
             >
-              <Icon icon="solar:alt-arrow-right-linear" height={18} width={18} />
+              <Icon icon="solar:alt-arrow-right-linear" height={15} width={15} />
             </Button>
           </div>
 
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
               From
               <Input
                 type="date"
-                className="h-9 w-40"
+                className="h-8 w-36 sm:w-40"
                 value={startDate}
                 disabled={allTime}
                 onChange={(e) => {
@@ -352,11 +453,11 @@ export default function AnalyticsDashboard() {
                 }}
               />
             </label>
-            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            <label className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
               To
               <Input
                 type="date"
-                className="h-9 w-40"
+                className="h-8 w-36 sm:w-40"
                 value={endDate}
                 min={startDate}
                 disabled={allTime}
@@ -372,51 +473,159 @@ export default function AnalyticsDashboard() {
         </div>
       </CardBox>
 
-      {error && <p className="rounded-md bg-error/10 px-3 py-2 text-sm text-error">{error}</p>}
+      {error && (
+        <p className="rounded-sm bg-error/10 px-3 py-2 font-mono text-xs text-error">{error}</p>
+      )}
 
       {loading ? (
-        <div className="grid gap-6 md:grid-cols-4">
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="h-32 animate-pulse rounded-lg bg-muted" />
+            <div key={i} className="h-28 animate-pulse rounded-sm bg-muted" />
           ))}
         </div>
       ) : (
         <>
+          {/* Ledger summary lines */}
           <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-            <StatCard
+            <LedgerStat
               label="Total Income"
-              value={fmtMoney(totals.income)}
+              value={fmtMoney(animatedIncome, currency)}
+              sign="+"
+              tone="credit"
               sub={periodLabel}
-              icon="solar:wallet-money-bold"
-              tone="success"
             />
-            <StatCard
+            <LedgerStat
               label="Total Expenses"
-              value={fmtMoney(totals.expenses)}
+              value={fmtMoney(animatedExpenses, currency)}
+              sign="−"
+              tone="debit"
               sub={periodLabel}
-              icon="solar:cart-large-2-bold"
-              tone="warning"
             />
-            <StatCard
+            <LedgerStat
               label="Net Cash Flow"
-              value={fmtMoney(totals.net)}
+              value={fmtMoney(animatedNet, currency)}
+              sign={totals.net >= 0 ? '+' : '−'}
+              tone={totals.net >= 0 ? 'ink' : 'debit'}
               sub={totals.net >= 0 ? 'Positive balance' : 'Negative balance'}
-              icon={totals.net >= 0 ? 'solar:trend-up-bold' : 'solar:trend-down-bold'}
-              tone={totals.net >= 0 ? 'primary' : 'error'}
             />
-            <StatCard
+            <LedgerStat
               label="Savings Rate"
-              value={`${totals.savingsRate.toFixed(1)}%`}
+              value={`${animatedRate.toFixed(1)}%`}
+              tone={totals.savingsRate >= 0 ? 'ink' : 'debit'}
               sub="of income saved"
-              icon="solar:pie-chart-2-bold"
             />
           </div>
+
+          {/* The running balance register — the signature of the ledger */}
+          <CardBox className="overflow-hidden">
+            <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border px-5 py-4">
+              <div>
+                <p className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  Running Balance — Ledger
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {registerCount === 0
+                    ? 'No entries this period'
+                    : `${registerCount} entr${registerCount === 1 ? 'y' : 'ies'} · closing ${fmtMoney(registerTotal, currency)}`}
+                </p>
+              </div>
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                {periodLabel}
+              </p>
+            </div>
+
+            {registerCount === 0 ? (
+              <div className="px-5 py-14 text-center">
+                <Icon
+                  icon="solar:inbox-outline"
+                  height={40}
+                  width={40}
+                  className="mx-auto text-muted-foreground/60"
+                />
+                <p className="mx-auto mt-4 max-w-sm text-sm text-muted-foreground">
+                  This statement is blank. Import a bank statement PDF to start the ledger — the
+                  balance column keeps itself.
+                </p>
+                <Button asChild variant="outline" size="sm" className="mt-4">
+                  <Link to="/statements/upload">Import a statement</Link>
+                </Button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="px-5 py-2.5 text-left font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                        Date
+                      </th>
+                      <th className="px-5 py-2.5 text-left font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                        Description
+                      </th>
+                      <th className="px-5 py-2.5 text-right font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                        Credit
+                      </th>
+                      <th className="px-5 py-2.5 text-right font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                        Debit
+                      </th>
+                      <th className="px-5 py-2.5 text-right font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                        Balance
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {registerPage.map((row, i) => (
+                      <tr
+                        key={row.id}
+                        className="ledger-print-row border-b border-border/70"
+                        style={{ animationDelay: `${Math.min(i, 8) * 55}ms` }}
+                      >
+                        <td className="px-5 py-2.5 font-mono text-xs tabular-nums text-muted-foreground">
+                          {shortDate(row.date)}
+                        </td>
+                        <td className="max-w-[16rem] truncate px-5 py-2.5 text-foreground">
+                          {row.description}
+                        </td>
+                        <td className="px-5 py-2.5 text-right font-mono text-xs tabular-nums text-success">
+                          {row.amount > 0 ? fmtMoney(row.amount, currency) : ''}
+                        </td>
+                        <td className="px-5 py-2.5 text-right font-mono text-xs tabular-nums text-error">
+                          {row.amount < 0 ? fmtMoney(Math.abs(row.amount), currency) : ''}
+                        </td>
+                        <td className="px-5 py-2.5 text-right font-mono text-xs font-semibold tabular-nums text-foreground">
+                          {fmtMoney(row.balance, currency)}
+                        </td>
+                      </tr>
+                    ))}
+                    {registerCount > registerPage.length && (
+                      <tr className="border-b border-border/70">
+                        <td
+                          colSpan={5}
+                          className="px-5 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
+                        >
+                          … {registerCount - registerPage.length} earlier entr
+                          {registerCount - registerPage.length === 1 ? 'y' : 'ies'} this period
+                        </td>
+                      </tr>
+                    )}
+                    <tr className="border-t-2 border-foreground/70">
+                      <td colSpan={4} className="px-5 py-3 text-right font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                        Closing Balance
+                      </td>
+                      <td className={`px-5 py-3 text-right font-mono text-sm font-semibold tabular-nums ${registerTotal < 0 ? 'text-error' : 'text-foreground'}`}>
+                        {fmtMoney(registerTotal, currency)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardBox>
 
           <div className="grid gap-6 xl:grid-cols-3">
             <CardBox className="xl:col-span-2">
               <div className="p-5">
-                <h3 className="font-semibold text-foreground">{chartTitle}</h3>
-                <p className="text-sm text-muted-foreground">
+                <h3 className="font-display text-xl font-normal text-foreground">{chartTitle}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
                   {dayMode
                     ? 'Per day of the selected month'
                     : allTime
@@ -428,37 +637,32 @@ export default function AnalyticsDashboard() {
                     <AreaChart data={series} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                       <defs>
                         <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#5d87ff" stopOpacity={0.35} />
-                          <stop offset="95%" stopColor="#5d87ff" stopOpacity={0} />
+                          <stop offset="5%" stopColor={cssVar('--chart-1')} stopOpacity={0.28} />
+                          <stop offset="95%" stopColor={cssVar('--chart-1')} stopOpacity={0} />
                         </linearGradient>
                         <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#fa896b" stopOpacity={0.35} />
-                          <stop offset="95%" stopColor="#fa896b" stopOpacity={0} />
+                          <stop offset="5%" stopColor={cssVar('--chart-2')} stopOpacity={0.28} />
+                          <stop offset="95%" stopColor={cssVar('--chart-2')} stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="label" stroke="var(--muted-foreground)" fontSize={11} interval="preserveStartEnd" />
-                      <YAxis stroke="var(--muted-foreground)" fontSize={11} />
-                      <Tooltip
-                        contentStyle={{
-                          background: 'var(--card)',
-                          border: '1px solid var(--border)',
-                          borderRadius: 8,
-                        }}
-                      />
-                      <Legend />
+                      <CartesianGrid strokeDasharray="2 4" stroke="var(--border)" />
+                      <XAxis dataKey="label" tick={axisTick} interval="preserveStartEnd" />
+                      <YAxis tick={axisTick} />
+                      <Tooltip contentStyle={tooltipStyle} />
                       <Area
                         type="monotone"
                         dataKey="income"
                         name="Income"
-                        stroke="#5d87ff"
+                        stroke={cssVar('--chart-1')}
+                        strokeWidth={2}
                         fill="url(#incomeGrad)"
                       />
                       <Area
                         type="monotone"
                         dataKey="expenses"
                         name="Expenses"
-                        stroke="#fa896b"
+                        stroke={cssVar('--chart-2')}
+                        strokeWidth={2}
                         fill="url(#expenseGrad)"
                       />
                     </AreaChart>
@@ -469,10 +673,14 @@ export default function AnalyticsDashboard() {
 
             <CardBox>
               <div className="p-5">
-                <h3 className="font-semibold text-foreground">Expenses by Category</h3>
-                <p className="text-sm text-muted-foreground">Selected period breakdown</p>
+                <h3 className="font-display text-xl font-normal text-foreground">
+                  Expenses by Category
+                </h3>
+                <p className="mt-1 text-sm text-muted-foreground">Selected period breakdown</p>
                 {categories.length === 0 ? (
-                  <p className="mt-6 text-sm text-muted-foreground">No expense data in this period.</p>
+                  <p className="mt-6 text-sm text-muted-foreground">
+                    No expense data in this period.
+                  </p>
                 ) : (
                   <>
                     <div className="mt-4 h-[180px]">
@@ -487,30 +695,23 @@ export default function AnalyticsDashboard() {
                             paddingAngle={2}
                           >
                             {categories.map((_, i) => (
-                              <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                              <Cell key={i} fill={chartColor(i)} stroke="none" />
                             ))}
                           </Pie>
-                          <Tooltip
-                            contentStyle={{
-                              background: 'var(--card)',
-                              border: '1px solid var(--border)',
-                              borderRadius: 8,
-                            }}
-                          />
+                          <Tooltip contentStyle={tooltipStyle} />
                         </PieChart>
                       </ResponsiveContainer>
                     </div>
-                    <div className="mt-4 space-y-2">
+                    <div className="mt-4 divide-y divide-border/70">
                       {categories.map((cat, i) => (
-                        <div key={cat.category} className="flex items-center justify-between text-sm">
-                          <span className="flex items-center gap-2 text-muted-foreground">
-                            <span
-                              className="h-2.5 w-2.5 rounded-full"
-                              style={{ background: PIE_COLORS[i % PIE_COLORS.length] }}
-                            />
+                        <div key={cat.category} className="flex items-center justify-between py-2 text-sm">
+                          <span className="flex items-center gap-2.5 text-muted-foreground">
+                            <span className="h-2 w-2" style={{ background: chartColor(i) }} />
                             {cat.category}
                           </span>
-                          <span className="font-medium text-foreground">{fmtMoney(cat.total)}</span>
+                          <span className="font-mono text-xs tabular-nums font-medium text-foreground">
+                            {fmtMoney(cat.total, currency)}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -523,26 +724,27 @@ export default function AnalyticsDashboard() {
           <div className="grid gap-6 xl:grid-cols-2">
             <CardBox>
               <div className="p-5">
-                <h3 className="font-semibold text-foreground">
+                <h3 className="font-display text-xl font-normal text-foreground">
                   {dayMode ? 'Daily Net Trend' : 'Monthly Net Trend'}
                 </h3>
-                <p className="text-sm text-muted-foreground">
-                  Net savings per {dayMode ? 'day' : 'month'}
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Net savings per {dayMode ? 'day' : 'month'} — green above zero, red below
                 </p>
                 <div className="mt-4 h-[260px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={series} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="label" stroke="var(--muted-foreground)" fontSize={11} interval="preserveStartEnd" />
-                      <YAxis stroke="var(--muted-foreground)" fontSize={11} />
-                      <Tooltip
-                        contentStyle={{
-                          background: 'var(--card)',
-                          border: '1px solid var(--border)',
-                          borderRadius: 8,
-                        }}
-                      />
-                      <Bar dataKey="net" name="Net" fill="#5d87ff" radius={[4, 4, 0, 0]} />
+                      <CartesianGrid strokeDasharray="2 4" stroke="var(--border)" />
+                      <XAxis dataKey="label" tick={axisTick} interval="preserveStartEnd" />
+                      <YAxis tick={axisTick} />
+                      <Tooltip contentStyle={tooltipStyle} />
+                      <Bar dataKey="net" name="Net" radius={[2, 2, 0, 0]}>
+                        {series.map((p, i) => (
+                          <Cell
+                            key={i}
+                            fill={p.net >= 0 ? cssVar('--chart-1') : cssVar('--chart-2')}
+                          />
+                        ))}
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -551,13 +753,15 @@ export default function AnalyticsDashboard() {
 
             <CardBox>
               <div className="p-5">
-                <h3 className="font-semibold text-foreground">Financial Health Ratios</h3>
+                <h3 className="font-display text-xl font-normal text-foreground">
+                  Financial Health Ratios
+                </h3>
                 {allTime ? (
                   <p className="mt-4 text-sm text-muted-foreground">
                     Ratios are shown per period — select a month, quarter or year to view them.
                   </p>
                 ) : ratios ? (
-                  <div className="mt-4 grid grid-cols-2 gap-4">
+                  <div className="mt-2 divide-y divide-border/70">
                     <RatioTile label="Current Ratio" value={ratios.liquidity.current_ratio} />
                     <RatioTile label="Cash Ratio" value={ratios.liquidity.cash_ratio} />
                     <RatioTile label="Net Profit Margin" value={ratios.profitability.net_profit_margin} />
@@ -567,20 +771,29 @@ export default function AnalyticsDashboard() {
                   </div>
                 ) : null}
                 {debtSummary && (
-                  <div className="mt-5 rounded-lg bg-lightprimary p-4">
-                    <p className="text-sm font-medium text-primary">Debt Summary</p>
-                    <p className="mt-1 text-2xl font-semibold text-foreground">
-                      {fmtMoney(debtSummary.total_balance)}
+                  <div className="mt-5 border border-border bg-lightprimary px-4 py-3">
+                    <p className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-primary">
+                      Debt Summary
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                      {debtSummary.total_debts} active debt{debtSummary.total_debts === 1 ? '' : 's'} · min
-                      payment {fmtMoney(debtSummary.total_monthly_payment)}
+                    <p className="mt-1 font-mono text-2xl font-medium tabular-nums text-foreground">
+                      {fmtMoney(debtSummary.total_balance, currency)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {debtSummary.total_debts} active debt{debtSummary.total_debts === 1 ? '' : 's'} ·
+                      min payment {fmtMoney(debtSummary.total_monthly_payment, currency)}
                     </p>
                   </div>
                 )}
               </div>
             </CardBox>
           </div>
+
+          {!hasAny && !loading && (
+            <p className="text-center text-xs text-muted-foreground">
+              Everything on this page is computed from your records — the ledger has no other
+              source.
+            </p>
+          )}
         </>
       )}
     </div>
@@ -589,11 +802,11 @@ export default function AnalyticsDashboard() {
 
 function RatioTile({ label, value, unit }: { label: string; value: number | null; unit?: string }) {
   return (
-    <div className="rounded-lg border border-border p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-foreground">
+    <div className="flex items-baseline justify-between py-2.5">
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <span className="font-mono text-sm tabular-nums font-semibold text-foreground">
         {value === null || value === undefined ? '—' : `${value}${unit ?? ''}`}
-      </p>
+      </span>
     </div>
   );
 }

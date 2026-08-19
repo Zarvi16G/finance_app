@@ -17,8 +17,45 @@ A full-stack personal finance manager. Track income and expenses, upload bank st
                                      SQLite / MySQL
 ```
 
+## Demo
+
+Screenshots from a live run against seeded demo data (dashboard, debts, goals, AI analysis, statement list, profile and the auto-generated Swagger UI).
+
+### Dashboard
+
+Financial health at a glance: stat tiles, income vs expenses charts, savings rate, health ratios and a debt summary. Period filters drive everything (month, quarter, year, custom range).
+
+![Dashboard](docs/assets/demo/02-dashboard.png)
+
+### Debts & Goals
+
+A registry of everything you owe with payoff progress, monthly interest and payoff horizon; savings goals with target dates and per-goal progress.
+
+![Debts](docs/assets/demo/03-debts.png)
+![Goals](docs/assets/demo/04-goals.png)
+
+### AI Analysis
+
+Click **Start Analysis** and the backend produces an executive health audit, budget leak analysis and actionable steps — via Gemini/OpenAI/Anthropic, falling back to a rule-based expert system when no key is configured.
+
+![AI Analysis](docs/assets/demo/06-analysis-report.png)
+
+### Bank Statement Review
+
+Uploaded PDFs land in a review queue with AI-suggested categories per transaction, bulk confirm and a chat assistant that understands the statement.
+
+![Statements](docs/assets/demo/07-statements.png)
+
+### Profile & Swagger UI
+
+Customize currency, transaction types and categories, or manage AI provider keys. The REST API ships a live OpenAPI/Swagger UI at `/api/schema/swagger-ui/` (dev mode).
+
+![Profile](docs/assets/demo/08-profile.png)
+![Swagger UI](docs/assets/demo/09-swagger-ui.png)
+
 ## Table of Contents
 
+- [Demo](#demo)
 - [Features](#features)
 - [Tech Stack](#tech-stack)
 - [Prerequisites](#prerequisites)
@@ -26,6 +63,7 @@ A full-stack personal finance manager. Track income and expenses, upload bank st
   - [1. Backend setup](#1-backend-setup)
   - [2. Frontend setup](#2-frontend-setup)
   - [3. Run the app](#3-run-the-app)
+- [API Documentation (Swagger)](#api-documentation-swagger)
 - [AI API Keys (Sign Up)](#ai-api-keys-sign-up)
   - [Getting a key from a provider](#getting-a-key-from-a-provider)
   - [Adding the key in the app](#adding-the-key-in-the-app)
@@ -131,6 +169,21 @@ cd frontend && npm run dev
 Open **http://localhost:5173**, create an account with the **Register** link, and you're in.
 
 > `npm run lint` runs oxlint and `npm run build` produces a production build. Backend tests: `cd backend && python manage.py test`.
+
+## API Documentation (Swagger)
+
+The backend generates its OpenAPI schema automatically (via `drf-spectacular`). With the dev server running:
+
+- **Interactive Swagger UI:** `http://localhost:8000/api/schema/swagger-ui/`
+- **ReDoc:** `http://localhost:8000/api/schema/redoc/`
+- **Raw schema (YAML):** `http://localhost:8000/api/schema/` — also committed as [docs/openapi.yaml](docs/openapi.yaml)
+
+Every endpoint is documented with request/response schemas, auth requirements and error codes. Regenerate the committed copy anytime with:
+
+```bash
+cd backend && source venv/bin/activate
+python manage.py spectacular --file ../docs/openapi.yaml
+```
 
 ## AI API Keys (Sign Up)
 
@@ -254,4 +307,6 @@ personal_financial_app/
 ## Further Reading
 
 - **[docs/DOCUMENTATION.md](docs/DOCUMENTATION.md)** — architecture, data model, auth flow, AI integration internals, development workflows
+- **[docs/openapi.yaml](docs/openapi.yaml)** — OpenAPI 3.0 schema of the whole REST API (Swagger UI served at `/api/schema/swagger-ui/`)
+- **[docs/frontend/architecture-design.md](docs/frontend/architecture-design.md)** — frontend record: components, routes, data flows, contracts, gaps
 - **[backend/README.md](backend/README.md)** — full REST API reference (endpoints, request/response examples, env vars)

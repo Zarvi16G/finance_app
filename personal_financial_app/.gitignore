@@ -11,6 +11,7 @@ venv/
 
 # Django
 db.sqlite3
+*demo_db.sqlite3
 media/
 staticfiles/
 

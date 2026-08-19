@@ -1,7 +1,7 @@
 /**
- * Shared dashboard shell: sidebar navigation, header with
-theme toggle and user dropdown, mobile drawer, and the
-outlet where routed pages render.
+ * Shared dashboard shell: paper sidebar navigation, header with
+ * theme toggle and user dropdown, mobile drawer, and the outlet
+ * where routed pages render.
  */
 import { useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -9,7 +9,7 @@ import { Icon } from '@iconify/react';
 import SimpleBar from 'simplebar-react';
 import { AMSidebar, AMMenu, AMMenuItem } from 'tailwind-sidebar';
 import 'tailwind-sidebar/styles.css';
-import logo from '../assets/logo.svg';
+import LedgerMark from '../components/shared/LedgerMark';
 import { useTheme } from '../components/provider/theme-provider';
 import { useAuth } from '../auth/AuthContext';
 import { Button } from '../components/ui/button';
@@ -34,11 +34,22 @@ const NAV_ITEMS = [
   { name: 'Profile', icon: 'solar:user-circle-linear', url: '/profile' },
 ];
 
+function sectionLabel(pathname: string): string {
+  if (pathname.startsWith('/statements')) return 'Statements';
+  if (pathname.startsWith('/debts')) return 'Debts';
+  if (pathname.startsWith('/goals')) return 'Goals';
+  if (pathname.startsWith('/analysis')) return 'AI Analysis';
+  if (pathname.startsWith('/profile')) return 'Profile';
+  return 'Dashboard';
+}
+
 function BrandLogo() {
   return (
-    <Link to="/" className="flex items-center gap-2 px-4 py-4">
-      <img src={logo} alt="FinanceApp logo" className="h-9 w-9" />
-      <span className="text-xl font-semibold text-sidebar-foreground">FinanceApp</span>
+    <Link to="/" className="flex items-center gap-2.5 px-4 py-5" aria-label="Ledgerline home">
+      <LedgerMark className="h-8 w-8 text-sidebar-foreground" />
+      <span className="font-mono text-sm font-semibold uppercase tracking-[0.22em] text-sidebar-foreground">
+        Ledgerline
+      </span>
     </Link>
   );
 }
@@ -53,20 +64,20 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       collapsible="none"
       animation={true}
       showProfile={false}
-      width={'270px'}
+      width={'264px'}
       showTrigger={false}
       mode={sidebarMode}
-      className="fixed left-0 top-0 border border-border dark:border-border bg-sidebar dark:bg-sidebar z-10 h-screen"
+      className="fixed left-0 top-0 border-r border-border bg-sidebar dark:bg-sidebar z-10 h-screen"
     >
-      <div className="px-6 flex items-center brand-logo overflow-hidden bg-white dark:bg-dark">
+      <div className="border-b border-border bg-sidebar">
         <BrandLogo />
       </div>
 
-      <SimpleBar className="h-[calc(100vh-76px)]">
-        <div className="px-6">
+      <SimpleBar className="h-[calc(100vh-90px)]">
+        <div className="px-3 pt-4">
           <AMMenu
-            subHeading="MENU"
-            ClassName="hide-menu leading-21 text-sidebar-foreground font-bold uppercase text-xs dark:text-sidebar-foreground"
+            subHeading="Your Ledger"
+            ClassName="hide-menu leading-21 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground font-semibold"
           />
           {NAV_ITEMS.map((item) => {
             const isSelected =
@@ -74,11 +85,11 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             return (
               <div key={item.url} onClick={onClose}>
                 <AMMenuItem
-                  icon={<Icon icon={item.icon} height={21} width={21} />}
+                  icon={<Icon icon={item.icon} height={17} width={17} />}
                   isSelected={isSelected}
                   link={item.url}
                   component={Link}
-                  className="mt-0.5 text-sidebar-foreground dark:text-sidebar-foreground"
+                  className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.14em] text-sidebar-foreground dark:text-sidebar-foreground"
                 >
                   <span className="truncate flex-1">{item.name}</span>
                 </AMMenuItem>
@@ -105,15 +116,20 @@ function ProfileMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="flex items-center gap-2 rounded-full p-1 outline-none transition hover:bg-muted">
-          <Avatar className="h-9 w-9">
-            <AvatarFallback className="bg-lightprimary text-primary">{initials}</AvatarFallback>
+        <button className="flex items-center gap-2 rounded-sm p-1 outline-none transition hover:bg-lightprimary">
+          <Avatar className="h-9 w-9 rounded-sm">
+            <AvatarFallback className="bg-lightprimary font-mono text-xs text-primary">
+              {initials}
+            </AvatarFallback>
           </Avatar>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel>
-          <p className="text-sm font-semibold">{user?.username}</p>
+          <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+            Account Holder
+          </p>
+          <p className="mt-1 text-sm font-semibold">{user?.username}</p>
           <p className="text-xs text-muted-foreground">{user?.email || '—'}</p>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
@@ -133,6 +149,7 @@ function ProfileMenu() {
 export default function FullLayout() {
   const { theme, setTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { pathname } = useLocation();
 
   const toggleMode = () => setTheme(theme === 'light' ? 'dark' : 'light');
 
@@ -143,26 +160,37 @@ export default function FullLayout() {
           <SidebarContent />
         </div>
 
-        <div className="body-wrapper w-full bg-white dark:bg-dark">
-          {/* Top Header */}
-          <header className="sticky top-0 z-20 border-b border-border bg-white dark:bg-dark px-6 py-4 flex items-center justify-between">
+        <div className="body-wrapper min-w-0 flex-1 bg-background xl:ml-[264px]">
+          {/* Top Header — the statement masthead strip */}
+          <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur-sm px-6 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Button
                 variant="outline"
                 size="icon"
                 className="xl:hidden"
                 onClick={() => setMobileOpen(true)}
+                aria-label="Open navigation"
               >
-                <Icon icon="solar:hamburger-menu-linear" height={20} width={20} />
+                <Icon icon="solar:hamburger-menu-linear" height={18} width={18} />
               </Button>
-              <h1 className="text-xl font-semibold text-foreground">FinanceApp</h1>
+              <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+                <span className="text-foreground font-semibold">Ledgerline</span>
+                <span className="mx-2 text-border">/</span>
+                {sectionLabel(pathname)}
+              </p>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" onClick={toggleMode} aria-label="Toggle theme">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleMode}
+                aria-label="Toggle theme"
+                className="text-muted-foreground hover:text-foreground"
+              >
                 <Icon
                   icon={theme === 'dark' ? 'solar:sun-linear' : 'solar:moon-linear'}
-                  height={20}
-                  width={20}
+                  height={18}
+                  width={18}
                 />
               </Button>
               <ProfileMenu />
@@ -171,7 +199,7 @@ export default function FullLayout() {
 
           {/* Mobile drawer */}
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-            <SheetContent side="left" className="p-0 w-[270px]">
+            <SheetContent side="left" className="p-0 w-[264px]">
               <SheetTitle>
                 <VisuallyHidden>Navigation</VisuallyHidden>
               </SheetTitle>
@@ -180,7 +208,7 @@ export default function FullLayout() {
           </Sheet>
 
           {/* Body Content */}
-          <div className="container mx-auto px-6 py-8">
+          <div className="mx-auto w-full max-w-[1240px] px-6 py-8">
             <main className="grow">
               <Outlet />
             </main>
