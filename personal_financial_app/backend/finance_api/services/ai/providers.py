@@ -135,15 +135,15 @@ _PROVIDER_CLIENTS = {
 }
 
 
-def call_ai(system_prompt, user_message, history=None, provider=None, model=None, api_key=None):
-    """Call the configured AI provider and return the text response.
+def call_ai(user, system_prompt, user_message, history=None, provider=None, model=None, api_key=None):
+    """Call the given user's configured AI provider and return the text response.
 
-    Resolves provider/model/api key from the stored settings when not given
-    explicitly. Returns '' on any failure so callers can use rule fallbacks.
+    Resolves provider/model/api key from that user's stored settings when not
+    given explicitly. Returns '' on any failure so callers can use rule fallbacks.
     """
-    provider = provider or ai_settings.get_provider()
-    api_key = api_key or ai_settings.get_api_key(provider)
-    model = model or ai_settings.get_model(provider)
+    provider = provider or ai_settings.get_provider(user)
+    api_key = api_key or ai_settings.get_api_key(user, provider)
+    model = model or ai_settings.get_model(user, provider)
 
     if not api_key:
         return ''
@@ -159,12 +159,12 @@ def call_ai(system_prompt, user_message, history=None, provider=None, model=None
         return ''
 
 
-def suggest_categories(transactions, categories, types, memories=None):
+def suggest_categories(user, transactions, categories, types, memories=None):
     """Ask the AI to categorize a batch of transactions; returns [] on failure."""
     prompt = _build_suggestion_prompt(transactions, categories, types, memories)
-    provider = ai_settings.get_provider()
-    api_key = ai_settings.get_api_key(provider)
-    model = ai_settings.get_model(provider)
+    provider = ai_settings.get_provider(user)
+    api_key = ai_settings.get_api_key(user, provider)
+    model = ai_settings.get_model(user, provider)
 
     if not api_key:
         logger.warning('AI categorization skipped: no API key for provider=%s', provider)

@@ -1,7 +1,7 @@
 /**
  * Profile settings page: currency preference
-plus custom category/type vocabulary
-(Choice) management with AI-key setup.
+ plus custom category/type vocabulary
+ (Choice) management with AI-key setup.
  */
 import { useEffect, useState, type FormEvent } from 'react';
 import CardBox from '../shared/CardBox';
@@ -26,9 +26,11 @@ import {
 } from '../ui/dialog';
 import { Badge } from '../ui/badge';
 import { profileApi } from '../../api/profile';
+import { exchangeRatesApi } from '../../api/exchangeRates';
 import { aiApi } from '../../api/ai';
 import { getErrorMessage } from '../../api/client';
-import type { AIConfig, ProfileSettings } from '../../types';
+import { useProfileCurrency } from '../../hooks/useProfileCurrency';
+import type { AIConfig, ProfileSettings, CurrencyRate } from '../../types';
 import { Icon } from '@iconify/react';
 
 const PROVIDERS = [
@@ -228,26 +230,32 @@ export function SettingsPanel() {
 
 export default function ProfileSettings() {
   const [settings, setSettings] = useState<ProfileSettings | null>(null);
-  const [currency, setCurrency] = useState('USD');
   const [newType, setNewType] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [newCategoryType, setNewCategoryType] = useState('expense');
+  const [rates, setRates] = useState<CurrencyRate[]>([]);
+  const [newCurrencyCode, setNewCurrencyCode] = useState('');
+  const [newCurrencyRate, setNewCurrencyRate] = useState('');
   const [saving, setSaving] = useState(false);
+  const [savingRates, setSavingRates] = useState(false);
+  const [ratesError, setRatesError] = useState('');
   const [error, setError] = useState('');
+  const { profileCurrency } = useProfileCurrency();
 
-  const fetchSettings = async () => {
+  const fetchRates = async () => {
+    setRatesError('');
     try {
-      const data = await profileApi.get();
-      setSettings(data);
-      setCurrency(data.currency);
+      const data = await exchangeRatesApi.list();
+      setRates(data);
     } catch (err) {
-      setError(getErrorMessage(err));
+      setRatesError(getErrorMessage(err));
     }
   };
 
   useEffect(() => {
-    fetchSettings();
-  }, []);
+    // Use profileCurrency from hook (reads cookie on mount)
+    setCurrency(profileCurrency);
+  }, [profileCurrency]);
 
   const handleSave = async (e: FormEvent) => {
     e.preventDefault();
@@ -263,10 +271,69 @@ export default function ProfileSettings() {
       setSettings(updated);
       setNewType('');
       setNewCategory('');
+      // Refresh page to apply new currency/state across all components
+      window.location.reload();
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
       setSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    if (settings?.currency) {
+      setCurrency(settings.currency);
+    }
+  }, [settings?.currency]);
+
+  const handleRateChange = (index: number, field: 'currency_code' | 'rate_to_cop', value: string) => {
+    setRates((prev) =>
+      prev.map((r, i) => (i === index ? { ...r, [field]: field === 'rate_to_cop' ? Number(value) : value } : r)),
+    );
+  };
+
+  const handleSaveRates = async () => {
+    setSavingRates(true);
+    setRatesError('');
+    try {
+      const updated = await exchangeRatesApi.bulkUpsert(rates);
+      setRates(updated);
+    } catch (err) {
+      setRatesError(getErrorMessage(err));
+    } finally {
+      setSavingRates(false);
+    }
+  };
+
+  const handleAddCurrency = async () => {
+    if (!newCurrencyCode.trim()) return;
+    const code = newCurrencyCode.trim().toUpperCase();
+    setSavingRates(true);
+    setRatesError('');
+    try {
+      const rate = newCurrencyRate.trim() ? Number(newCurrencyRate) : 1;
+      const created = await exchangeRatesApi.create({ currency_code: code, rate_to_cop: rate });
+      setRates((prev) => [...prev, created]);
+      setNewCurrencyCode('');
+      setNewCurrencyRate('');
+    } catch (err) {
+      setRatesError(getErrorMessage(err));
+    } finally {
+      setSavingRates(false);
+    }
+  };
+
+  const handleDeleteCurrency = async (code: string) => {
+    if (code === BASE_CURRENCY || code === settings?.currency) return;
+    setSavingRates(true);
+    setRatesError('');
+    try {
+      await exchangeRatesApi.delete(code);
+      setRates((prev) => prev.filter((r) => r.currency_code !== code));
+    } catch (err) {
+      setRatesError(getErrorMessage(err));
+    } finally {
+      setSavingRates(false);
     }
   };
 
@@ -365,6 +432,108 @@ export default function ProfileSettings() {
           </div>
         </CardBox>
       )}
+
+      <CardBox>
+        <div className="p-6">
+          <div className="flex items-center justify-between">
+            <h3 className="font-display text-xl font-normal text-foreground">Exchange Rates</h3>
+            <p className="text-sm text-muted-foreground">
+              Base currency: <strong>{BASE_CURRENCY}</strong> (COP)
+            </p>
+          </div>
+          {ratesError && (
+            <p className="mt-3 rounded-md bg-error/10 px-3 py-2 text-sm text-error">{ratesError}</p>
+          )}
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr>
+                  <th className="text-left font-medium text-muted-foreground">Currency</th>
+                  <th className="text-left font-medium text-muted-foreground">
+                    Rate to 1 {BASE_CURRENCY}
+                  </th>
+                  <th className="text-right font-medium text-muted-foreground">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rates.map((r, i) => (
+                  <tr key={r.currency_code} className="border-b border-border">
+                    <td className="py-2">
+                      <Input
+                        className="w-20 font-mono text-xs"
+                        value={r.currency_code}
+                        onChange={(e) =>
+                          handleRateChange(i, 'currency_code', e.target.value.toUpperCase())
+                        }
+                        maxLength={3}
+                      />
+                    </td>
+                    <td className="py-2">
+                      <Input
+                        className="w-32 font-mono text-xs"
+                        type="number"
+                        step="0.0001"
+                        min={0}
+                        value={r.rate_to_cop}
+                        onChange={(e) => handleRateChange(i, 'rate_to_cop', e.target.value)}
+                      />
+                    </td>
+                    <td className="py-2 text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteCurrency(r.currency_code)}
+                        disabled={r.currency_code === BASE_CURRENCY || r.currency_code === settings?.currency}
+                      >
+                        <Icon icon="solar:trash-bin-minimal-linear" width={16} height={16} />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-4 flex flex-wrap items-end gap-3">
+            <div>
+              <Label htmlFor="new-currency-code">New Currency</Label>
+              <Input
+                id="new-currency-code"
+                className="mt-1 w-20 font-mono text-xs"
+                value={newCurrencyCode}
+                onChange={(e) => setNewCurrencyCode(e.target.value.toUpperCase())}
+                maxLength={3}
+                placeholder="USD"
+              />
+            </div>
+            <div>
+              <Label htmlFor="new-currency-rate">Rate to {BASE_CURRENCY}</Label>
+              <Input
+                id="new-currency-rate"
+                className="mt-1 w-32 font-mono text-xs"
+                type="number"
+                step="0.0001"
+                min={0}
+                value={newCurrencyRate}
+                onChange={(e) => setNewCurrencyRate(e.target.value)}
+                placeholder="0.0001"
+              />
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={handleAddCurrency} disabled={!newCurrencyCode.trim() || savingRates}>
+              <Icon icon="solar:add-linear" width={16} height={16} className="mr-1" />
+              Add
+            </Button>
+          </div>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={fetchRates} disabled={savingRates}>
+              <Icon icon="solar:refresh-linear" width={16} height={16} className="mr-1" />
+              Reload
+            </Button>
+            <Button size="sm" onClick={handleSaveRates} disabled={savingRates || rates.length === 0}>
+              {savingRates ? 'Saving…' : 'Save Rates'}
+            </Button>
+          </div>
+        </div>
+      </CardBox>
     </div>
   );
 }

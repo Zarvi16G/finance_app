@@ -15,8 +15,10 @@ from .services.snapshot_service import compute_monthly_snapshot
 @receiver(post_save, sender=CustomType)
 def sync_custom_type_to_choice(sender, instance, created, **kwargs):
     # Types are plain labels with no extra attributes; only the name can vary.
+    # The mirrored Choice belongs to the same owner (unique per owner+name+type).
     if created:
         Choice.objects.get_or_create(
+            owner=instance.owner,
             name=instance.name,
             choice_type=Choice.TYPE,
             defaults=dict(
@@ -27,7 +29,7 @@ def sync_custom_type_to_choice(sender, instance, created, **kwargs):
     else:
         Choice.objects.update_or_create(
             custom_type=instance,
-            defaults=dict(name=instance.name)
+            defaults=dict(name=instance.name, owner=instance.owner)
         )
 
 
@@ -42,6 +44,7 @@ def sync_custom_category_to_choice(sender, instance, created, **kwargs):
     # which the Choice must mirror for the review UI to prefill correctly.
     if created:
         Choice.objects.get_or_create(
+            owner=instance.owner,
             name=instance.name,
             choice_type=Choice.CATEGORY,
             defaults=dict(
@@ -56,6 +59,7 @@ def sync_custom_category_to_choice(sender, instance, created, **kwargs):
             defaults=dict(
                 name=instance.name,
                 transaction_type=instance.transaction_type,
+                owner=instance.owner,
             )
         )
 
@@ -73,9 +77,11 @@ def refresh_snapshot_on_record_save(sender, instance, **kwargs):
     financial record (including category/type edits confirmed during statement
     review) must recompute its month snapshot.
     """
-    compute_monthly_snapshot(instance.date)
+    if instance.owner_id:
+        compute_monthly_snapshot(instance.owner, instance.date)
 
 
 @receiver(post_delete, sender=FinancialRecord)
 def refresh_snapshot_on_record_delete(sender, instance, **kwargs):
-    compute_monthly_snapshot(instance.date)
+    if instance.owner_id:
+        compute_monthly_snapshot(instance.owner, instance.date)

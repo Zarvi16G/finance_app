@@ -27,11 +27,11 @@ class AIAnalysisView(APIView):
     """
     def post(self, request, *args, **kwargs):
         # 1. Fetch current financial dataset & apply active filtering
-        records = FinancialRecord.objects.all()
+        records = FinancialRecord.objects.filter(owner=request.user)
         records = apply_filters_to_queryset(request, records)
 
         # 2. Retrieve financial goals
-        goals = ExpectedGoal.objects.all()
+        goals = ExpectedGoal.objects.filter(owner=request.user)
 
         result = run_financial_analysis(records, goals)
 

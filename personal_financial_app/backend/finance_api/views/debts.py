@@ -7,6 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from ..models import Debt, FinancialRecord
+from ..permissions import IsOwner
 from ..serializers import DebtSerializer
 
 
@@ -16,9 +17,13 @@ class DebtViewSet(viewsets.ModelViewSet):
     """
     queryset = Debt.objects.all()
     serializer_class = DebtSerializer
+    permission_classes = [IsOwner]
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = super().get_queryset().filter(owner=self.request.user)
         status_filter = self.request.query_params.get('status')
         if status_filter:
             queryset = queryset.filter(status=status_filter)
@@ -50,9 +55,11 @@ class DebtViewSet(viewsets.ModelViewSet):
         # Create expense record for interest
         if interest > 0:
             FinancialRecord.objects.create(
+                owner=request.user,
                 type='expense',
                 category='Other',
                 amount=Decimal(str(interest)),
+                currency=debt.currency,
                 date=payment_date,
                 description=f'Interest payment on {debt.name}',
                 account_bank=debt.creditor

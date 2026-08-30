@@ -27,7 +27,7 @@ class ExportCSVView(APIView):
     """
     def get(self, request, *args, **kwargs):
         # Query initial records and apply current active filters
-        records = FinancialRecord.objects.all()
+        records = FinancialRecord.objects.filter(owner=request.user)
         records = apply_filters_to_queryset(request, records)
 
         # Construct CSV HTTP response
@@ -66,7 +66,7 @@ class ExportPDFView(APIView):
     """
     def get(self, request, *args, **kwargs):
         # Retrieve and filter the record queryset
-        records = FinancialRecord.objects.all()
+        records = FinancialRecord.objects.filter(owner=request.user)
         records = apply_filters_to_queryset(request, records)
 
         # Calculate totals for the summary box

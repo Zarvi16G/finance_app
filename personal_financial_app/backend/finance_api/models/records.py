@@ -1,4 +1,5 @@
 """FinancialRecord model: incomes & expenses."""
+from django.conf import settings
 from django.db import models
 
 
@@ -33,6 +34,13 @@ class FinancialRecord(models.Model):
         ('other', 'Other'),
     ]
 
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='financial_records',
+        help_text="The user this record belongs to",
+    )
+
     type = models.CharField(
         max_length=10,
         help_text="Type of transaction: income, expense, or custom"
@@ -48,6 +56,11 @@ class FinancialRecord(models.Model):
         max_digits=12,
         decimal_places=2,
         help_text="Monetary value of the transaction"
+    )
+    currency = models.CharField(
+        max_length=3,
+        default='COP',
+        help_text="ISO 4217 currency code of the amount",
     )
 
     date = models.DateField(
@@ -83,4 +96,4 @@ class FinancialRecord(models.Model):
         ordering = ['-date', '-created_at']
 
     def __str__(self):
-        return f"{self.type.capitalize()} - {self.category}: {self.amount} ({self.date})"
+        return f"{self.type.capitalize()} - {self.category}: {self.currency}{self.amount} ({self.date})"

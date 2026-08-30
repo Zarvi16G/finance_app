@@ -6,18 +6,19 @@ import { apiClient } from './client';
 import type { Debt } from '../types';
 
 export interface DebtInput {
-  name: string;
-  debt_type: string;
-  creditor: string;
-  original_amount: number | string;
-  current_balance: number | string;
-  interest_rate: number | string;
-  minimum_payment: number | string;
-  due_date: number;
-  start_date: string;
-  end_date?: string | null;
-  status?: string;
-  notes?: string;
+    name: string;
+    debt_type: string;
+    currency: string;
+    creditor: string;
+    original_amount: number | string;
+    current_balance: number | string;
+    interest_rate: number | string;
+    minimum_payment: number | string;
+    due_date: number;
+    start_date: string;
+    end_date?: string | null;
+    status?: string;
+    notes?: string;
 }
 
 export const debtsApi = {

@@ -27,9 +27,10 @@ import {
 } from '../ui/select';
 import { Input } from '../ui/input';
 import { statementsApi, extractedApi } from '../../api/statements';
-import { choicesApi } from '../../api/profile';
+import { choicesApi, profileApi } from '../../api/profile';
 import { aiApi } from '../../api/ai';
 import { getErrorMessage } from '../../api/client';
+import { fmtMoney, BASE_CURRENCY } from '../../lib/money';
 import type { BankStatement, Choice, ExtractedTransaction } from '../../types';
 import { Icon } from '@iconify/react';
 
@@ -40,11 +41,35 @@ interface ChatMessage {
 
 type OptimisticTxn = ExtractedTransaction & { confirmed?: boolean };
 
+const CurrencySelect = ({
+  value,
+  onChange,
+  currencies,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  currencies: string[];
+}) => (
+  <Select value={value} onValueChange={onChange}>
+    <SelectTrigger className="h-8 text-sm">
+      <SelectValue />
+    </SelectTrigger>
+    <SelectContent>
+      {currencies.map((c) => (
+        <SelectItem key={c} value={c}>
+          {c}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+);
+
 export default function StatementReview() {
   const { id } = useParams<{ id: string }>();
   const [statement, setStatement] = useState<BankStatement | null>(null);
   const [txns, setTxns] = useState<OptimisticTxn[]>([]);
   const [choices, setChoices] = useState<Choice[]>([]);
+  const [availableCurrencies, setAvailableCurrencies] = useState<string[]>([BASE_CURRENCY]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [confirming, setConfirming] = useState<number | null>(null);
@@ -67,12 +92,16 @@ export default function StatementReview() {
     if (!id) return;
     setLoading(true);
     try {
-      const [statementData, txnData, choicesData] = await Promise.all([
+      const [statementData, txnData, choicesData, profileData] = await Promise.all([
         statementsApi.get(id),
         statementsApi.extracted(id),
         choicesApi.list(),
+        profileApi.get(),
       ]);
       setStatement(statementData);
+      const rates = profileData.exchange_rates || {};
+      const codes = new Set([BASE_CURRENCY, statementData.currency, ...Object.keys(rates)]);
+      setAvailableCurrencies(Array.from(codes).sort());
       setTxns((txnData as OptimisticTxn[]) ?? []);
       setChoices(choicesData);
     } catch (err) {
@@ -104,6 +133,7 @@ export default function StatementReview() {
         category: txn.user_confirmed_category || txn.suggested_category || '',
         type: txn.user_confirmed_type || txn.transaction_type,
         description: txn.cleaned_description,
+        currency: txn.currency,
       });
       updateTxn(txnId, { confirmed: true });
     } catch (err) {
@@ -124,6 +154,7 @@ export default function StatementReview() {
           category: t.user_confirmed_category || t.suggested_category || '',
           type: t.user_confirmed_type || t.transaction_type,
           description: t.cleaned_description,
+          currency: t.currency,
         })),
       );
       setSelected(new Set());
@@ -249,12 +280,13 @@ export default function StatementReview() {
                       }
                     />
                   </TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead className="text-right">Amount</TableHead>
+                <TableHead>Currency</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -293,7 +325,14 @@ export default function StatementReview() {
                       )}
                     </TableCell>
                     <TableCell className="text-right font-mono tabular-nums text-foreground">
-                      ${Number(txn.amount).toLocaleString()}
+                      {fmtMoney(Number(txn.amount), txn.currency || BASE_CURRENCY)}
+                    </TableCell>
+                    <TableCell className="min-w-[110px]">
+                      <CurrencySelect
+                        value={txn.currency || BASE_CURRENCY}
+                        onChange={(v) => updateTxn(txn.id, { currency: v })}
+                        currencies={availableCurrencies}
+                      />
                     </TableCell>
                     <TableCell className="min-w-[150px]">
                       <Select

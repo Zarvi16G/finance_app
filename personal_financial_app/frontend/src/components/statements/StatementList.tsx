@@ -18,7 +18,10 @@ import {
   TableRow,
 } from '../ui/table';
 import { statementsApi } from '../../api/statements';
+import { profileApi } from '../../api/profile';
 import { getErrorMessage } from '../../api/client';
+import { BASE_CURRENCY, fmtMoney, fmtMoneyCompact, convertFromSnapshot } from '../../lib/money';
+import { useProfileCurrency } from '../../hooks/useProfileCurrency';
 import type { BankStatement } from '../../types';
 import { Icon } from '@iconify/react';
 import {
@@ -50,7 +53,20 @@ export default function StatementList() {
   const [error, setError] = useState('');
   const [processingId, setProcessingId] = useState<number | string | null>(null);
   const [updatingType, setUpdatingType] = useState<number | string | null>(null);
+  const [updatingCurrency, setUpdatingCurrency] = useState<number | string | null>(null);
   const [deletingId, setDeletingId] = useState<number | string | null>(null);
+  const [availableCurrencies, setAvailableCurrencies] = useState<string[]>([BASE_CURRENCY]);
+  const { profileCurrency, setProfileCurrency } = useProfileCurrency();
+
+  useEffect(() => {
+    profileApi.get().then((s) => {
+      const rates = s.exchange_rates || {};
+      const codes = new Set([BASE_CURRENCY, s.currency || BASE_CURRENCY, ...Object.keys(rates)]);
+      setAvailableCurrencies(Array.from(codes).sort());
+    }).catch(() => {});
+    // Also sync profile currency from cookie via hook
+    // The useProfileCurrency hook already read the cookie on mount
+  }, []);
 
   const fetchStatements = async () => {
     setLoading(true);
@@ -116,6 +132,25 @@ export default function StatementList() {
     }
   };
 
+  const handleCurrencyChange = async (id: number | string, value: string) => {
+    const previous = statements.find((s) => s.id === id);
+    setUpdatingCurrency(id);
+    setError('');
+    setStatements((prev) => prev.map((s) => (s.id === id ? { ...s, currency: value } : s)));
+    try {
+      await statementsApi.update(id, { currency: value });
+    } catch (err) {
+      if (previous) {
+        setStatements((prev) =>
+          prev.map((s) => (s.id === id ? { ...s, currency: previous.currency } : s)),
+        );
+      }
+      setError(getErrorMessage(err));
+    } finally {
+      setUpdatingCurrency(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -133,6 +168,55 @@ export default function StatementList() {
       />
 
       {error && <p className="rounded-md bg-error/10 px-3 py-2 text-sm text-error">{error}</p>}
+
+      {/* Summary Cards - Income / Expenses / Net in USD */}
+      <CardBox className="mb-4">
+        <div className="p-4 border-b border-border">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Income (USD)</p>
+              <p className="font-display text-2xl font-normal text-success">
+                {fmtMoney(
+                  statements.reduce((sum, st) => sum + (st.total_income_usd || 0), 0),
+                  'USD'
+                )}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Expenses (USD)</p>
+              <p className="font-display text-2xl font-normal text-error">
+                {fmtMoney(
+                  statements.reduce((sum, st) => sum + (st.total_expense_usd || 0), 0),
+                  'USD'
+                )}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Net (USD)</p>
+              <p className="font-display text-2xl font-bold">
+                {fmtMoney(
+                  statements.reduce((sum, st) => sum + (st.net_usd || 0), 0),
+                  'USD'
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="p-4">
+          <p className="text-sm text-muted-foreground">
+            Primary view: USD {profileCurrency === 'USD' ? '(active)' : ''}
+            {profileCurrency !== 'USD' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setProfileCurrency('USD')}
+              >
+                Switch to USD
+              </Button>
+            )}
+          </p>
+        </div>
+      </CardBox>
 
       <CardBox className="overflow-hidden">
         {loading ? (
@@ -155,6 +239,7 @@ export default function StatementList() {
               <TableRow>
                 <TableHead>File</TableHead>
                 <TableHead>Type</TableHead>
+                <TableHead>Currency</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Extracted</TableHead>
                 <TableHead>Uploaded</TableHead>
@@ -175,7 +260,7 @@ export default function StatementList() {
                       <div>
                         <p className="font-medium text-foreground">{st.original_filename}</p>
                         <p className="text-xs text-muted-foreground">
-                          {st.file_size_mb} MB {st.bank_name ? `· ${st.bank_name}` : ''}
+                          {(st.file_size_mb ?? 0).toFixed(2)} MB {st.bank_name ? `· ${st.bank_name}` : ''}
                         </p>
                       </div>
                     </div>
@@ -201,8 +286,30 @@ export default function StatementList() {
                       <p className="mt-1 text-xs text-muted-foreground">Saving…</p>
                     )}
                   </TableCell>
-                  <TableCell>
-                    <Badge variant={statusTone[st.status] ?? 'gray'}>{st.status_display}</Badge>
+                   <TableCell className="font-mono">
+                     {updatingCurrency === st.id ? (
+                       <span className="text-xs text-muted-foreground">Saving…</span>
+                     ) : (
+                       <Select
+                         value={st.currency || BASE_CURRENCY}
+                         disabled={updatingCurrency === st.id}
+                         onValueChange={(value) => handleCurrencyChange(st.id, value)}
+                       >
+                         <SelectTrigger className="h-7 w-24 text-xs">
+                           <SelectValue />
+                         </SelectTrigger>
+                         <SelectContent>
+                           {availableCurrencies.map((code) => (
+                             <SelectItem key={code} value={code} className="text-xs">
+                               {code}
+                             </SelectItem>
+                           ))}
+                         </SelectContent>
+                       </Select>
+                     )}
+                   </TableCell>
+                   <TableCell>
+                     <Badge variant={statusTone[st.status] ?? 'gray'}>{st.status_display}</Badge>
                     {st.error_message && (
                       <p className="mt-1 text-xs text-error">{st.error_message}</p>
                     )}

@@ -1,0 +1,25 @@
+Currency needs to be located as USD default.
+
+The statement will be loaded as USD unless the user espcify the current currency, if the currency is selected, the values needs to be exchange according to the rate provided on profile, if there is not rate provided, don't allow that import, and if the currency is provided so jjust parse the pdf, and then check the real money, also on the statement section we need to allow edit that currency of the document, that's means if the user change that currency loaded on the first step, so that currency needs to update the database with the real exchange according to usd
+
+Then the currency pfile to manange the app web, needs to set every value on the currency selected, and also save as cookie for manage the visual of the user currency
+
+So backend will exchange rate, currency type, but the default currency will be USD, but the exchange rate needs to be retrivied from frontend on profile field section before make any calculation
+
+The model that save the statement parse can;'t be modified, so the currency and the values provided by the user needs to be save as is
+
+Then to fetch da on frontend, just show the real value and currency provided by user, can;t be edited, because the suer needs to prvided that currency before to load the document
+
+Then when the calculation summary on that statement needs to appear ont eh frontend total summary but as small representation, but the h1 value or principal calcultaion needs to be usd converted according to the api currency exchange rate
+
+each data fetch needs to be update maximum 1 per day, so if the user already login into the account corresponding to the day, those values needs to be snapshoted to save that day, and if the user log in another day, that snapshot needs to udpated again according the api
+
+On debts records, will have the same strcture based on this point:
+
+Debt uploaded as the user currency selected, can;t be modified but the summary on the top summary needs t o be converted but also needs to have a currency profile selected on below the original value to have that visualization too
+
+we need to have different chart or representation by currency debts, but the principal summary needs to be calculated on usd, but the user can change the currency on that option if he wants and also show the principal summary accodring to the prifle currency selected
+
+a
+
+

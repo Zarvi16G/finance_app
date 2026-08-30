@@ -3,6 +3,7 @@ from django.db import models
 from rest_framework import viewsets
 
 from ..models import FinancialRecord
+from ..permissions import IsOwner
 from ..serializers import FinancialRecordSerializer
 
 
@@ -14,13 +15,20 @@ class FinancialRecordViewSet(viewsets.ModelViewSet):
     """
     queryset = FinancialRecord.objects.all()
     serializer_class = FinancialRecordSerializer
+    permission_classes = [IsOwner]
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
 
     def get_queryset(self):
         """
         Applies filter logic dynamically based on HTTP request query parameters.
         This enables exact client-side syncing for dashboard graphics and custom filtering.
+
+        The base queryset is scoped to the authenticated user first, so every
+        list/detail/action route only ever sees rows owned by the caller.
         """
-        queryset = super().get_queryset()
+        queryset = super().get_queryset().filter(owner=self.request.user)
 
         # 1. Filter by transaction type (income / expense)
         record_type = self.request.query_params.get('type')

@@ -77,6 +77,9 @@ class LoginView(APIView):
         serializer = TokenObtainPairSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = getattr(serializer, 'user', None)
+        if user:
+            from ..services.auth_service import ensure_daily_snapshot
+            ensure_daily_snapshot(user)
         return Response(
             {**serializer.validated_data, 'user': auth_service.get_user_payload(user)},
             status=status.HTTP_200_OK,

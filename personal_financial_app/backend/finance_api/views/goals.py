@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema, OpenApiTypes
 
 from ..models import ExpectedGoal
+from ..permissions import IsOwner
 from ..serializers import ExpectedGoalSerializer
 
 
@@ -15,6 +16,13 @@ class ExpectedGoalViewSet(viewsets.ModelViewSet):
     """
     queryset = ExpectedGoal.objects.all()
     serializer_class = ExpectedGoalSerializer
+    permission_classes = [IsOwner]
+
+    def get_queryset(self):
+        return super().get_queryset().filter(owner=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
 
 
 @extend_schema(
@@ -27,7 +35,7 @@ class GoalsAnalysisView(APIView):
     Returns progress per category with overall summary statistics.
     """
     def get(self, request, *args, **kwargs):
-        goals = ExpectedGoal.objects.all()
+        goals = ExpectedGoal.objects.filter(owner=request.user)
 
         # Group goals by category
         category_map = {}
