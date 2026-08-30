@@ -2,16 +2,17 @@
 from django.db.models import Sum, Avg, Count
 
 from ..models import FinancialRecord, FinancialSnapshot, Debt
+from ..services.currency import convert_to_cop
 
 ESSENTIAL_CATEGORIES = ['Rent & Housing', 'Utilities', 'Food & Dining', 'Healthcare', 'Transportation']
 
 
-def compute_monthly_snapshot(date):
-    """Compute and store a complete monthly financial snapshot."""
-    snapshot, _ = FinancialSnapshot.objects.get_or_create(date=date.replace(day=1))
+def compute_monthly_snapshot(owner, date):
+    """Compute and store a complete monthly financial snapshot for one user."""
+    snapshot, _ = FinancialSnapshot.objects.get_or_create(owner=owner, date=date.replace(day=1))
 
     records = FinancialRecord.objects.filter(
-        date__year=date.year, date__month=date.month
+        owner=owner, date__year=date.year, date__month=date.month
     )
 
     total_income = float(records.filter(type='income').aggregate(Sum('amount'))['amount__sum'] or 0)
@@ -36,10 +37,15 @@ def compute_monthly_snapshot(date):
             'percentage': round(cat_total / total_expense_amount * 100, 2) if total_expense_amount > 0 else 0
         }
 
-    # Debts
-    debts = Debt.objects.filter(status='active')
-    total_liabilities = sum(float(d.current_balance) for d in debts)
-    total_min_payment = sum(float(d.minimum_payment) for d in debts)
+    # Debts — convert every balance to COP so the aggregate is meaningful
+    # when currencies differ.
+    debts = Debt.objects.filter(owner=owner, status='active')
+    total_liabilities = sum(
+        convert_to_cop(float(d.current_balance), d.currency or 'COP') for d in debts
+    )
+    total_min_payment = sum(
+        convert_to_cop(float(d.minimum_payment), d.currency or 'COP') for d in debts
+    )
 
     # Liquidity ratios
     current_ratio = (total_income / total_min_payment) if total_min_payment > 0 else None
@@ -59,7 +65,7 @@ def compute_monthly_snapshot(date):
     # Growth (YoY)
     prev_year = date.year - 1
     prev_records = FinancialRecord.objects.filter(
-        date__year=prev_year, date__month=date.month
+        owner=owner, date__year=prev_year, date__month=date.month
     )
     prev_income = float(prev_records.filter(type='income').aggregate(Sum('amount'))['amount__sum'] or 0)
     prev_expenses = float(prev_records.filter(type='expense').aggregate(Sum('amount'))['amount__sum'] or 0)

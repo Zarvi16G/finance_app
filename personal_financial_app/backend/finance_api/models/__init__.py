@@ -9,6 +9,7 @@ from .statements import BankStatement, ExtractedTransaction, CategorizationMemor
 from .debts import Debt
 from .snapshots import FinancialSnapshot
 from .settings import UserSetting, CustomType, CustomCategory, Choice
+from .currency_rates import CurrencyRate
 
 __all__ = [
     'FinancialRecord',
@@ -22,4 +23,5 @@ __all__ = [
     'CustomType',
     'CustomCategory',
     'Choice',
+    'CurrencyRate',
 ]

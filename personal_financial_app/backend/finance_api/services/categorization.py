@@ -36,11 +36,12 @@ def extract_pattern(description):
     return ' '.join(tokens[:4]) if tokens else description.lower()[:80]
 
 
-def record_memory(description, category, txn_type):
+def record_memory(owner, description, category, txn_type):
     pattern = extract_pattern(description)
     if not pattern:
         return
     obj, created = CategorizationMemory.objects.get_or_create(
+        owner=owner,
         pattern=pattern,
         category=category,
         transaction_type=txn_type,

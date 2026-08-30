@@ -16,6 +16,7 @@ class FinancialRecordSerializer(serializers.ModelSerializer):
             'type',
             'category',
             'amount',
+            'currency',
             'date',
             'description',
             'account_bank',

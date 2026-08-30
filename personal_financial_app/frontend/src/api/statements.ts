@@ -12,10 +12,11 @@ export const statementsApi = {
     return data;
   },
 
-  async upload(file: File, statementType?: string, password?: string): Promise<BankStatement> {
+  async upload(file: File, statementType?: string, password?: string, currency?: string): Promise<BankStatement> {
     const formData = new FormData();
     formData.append('file', file);
     if (statementType) formData.append('statement_type', statementType);
+    if (currency) formData.append('currency', currency);
     if (password) formData.append('password', password);
     const { data } = await apiClient.post<BankStatement>('/statements/', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -33,7 +34,7 @@ export const statementsApi = {
     return data;
   },
 
-  async update(id: number | string, data: Partial<Pick<BankStatement, 'statement_type' | 'bank_name'>>): Promise<BankStatement> {
+  async update(id: number | string, data: Partial<Pick<BankStatement, 'statement_type' | 'bank_name' | 'currency'>>): Promise<BankStatement> {
     const { data: updated } = await apiClient.patch<BankStatement>(`/statements/${id}/`, data);
     return updated;
   },
@@ -63,14 +64,14 @@ export const extractedApi = {
 
   async confirm(
     id: number | string,
-    payload: { category: string; type: string; description?: string; account_bank?: string },
+    payload: { category: string; type: string; description?: string; account_bank?: string; currency?: string },
   ) {
     const { data } = await apiClient.post(`/extracted/${id}/confirm/`, payload);
     return data;
   },
 
   async bulkConfirm(
-    transactions: Array<{ id: number; category: string; type: string; description?: string; account_bank?: string }>,
+    transactions: Array<{ id: number; category: string; type: string; description?: string; account_bank?: string; currency?: string }>,
   ) {
     const { data } = await apiClient.post('/extracted/bulk_confirm/', { transactions });
     return data;

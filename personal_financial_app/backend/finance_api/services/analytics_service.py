@@ -7,13 +7,14 @@ from django.db.models.functions import TruncMonth
 from django.utils import timezone
 
 from ..models import FinancialRecord, FinancialSnapshot, Debt
+from ..services.currency import convert_to_cop, get_rate_map
 
 ESSENTIAL_CATEGORIES = ['Rent & Housing', 'Utilities', 'Food & Dining', 'Healthcare', 'Transportation']
 
 
-def build_dashboard_data(start_date, end_date):
+def build_dashboard_data(owner, start_date, end_date):
     """Live dashboard computation (used when snapshots are incomplete)."""
-    records = FinancialRecord.objects.filter(date__gte=start_date, date__lte=end_date)
+    records = FinancialRecord.objects.filter(owner=owner, date__gte=start_date, date__lte=end_date)
 
     income_data = records.filter(type='income').annotate(
         month=TruncMonth('date')
@@ -37,7 +38,7 @@ def build_dashboard_data(start_date, end_date):
         count=Count('id')
     ).order_by('-total')
 
-    debts = Debt.objects.filter(status='active')
+    debts = Debt.objects.filter(owner=owner, status='active')
 
     return {
         'period': {'start': start_date, 'end': end_date},
@@ -45,13 +46,13 @@ def build_dashboard_data(start_date, end_date):
         'expense_by_category': list(expense_by_category),
         'income_by_category': list(income_by_category),
         'monthly_trends': get_monthly_trends(records, start_date, end_date),
-        'financial_ratios': calculate_financial_ratios(records, start_date, end_date),
+        'financial_ratios': calculate_financial_ratios(owner, records, start_date, end_date),
         'debt_summary': get_debt_summary(debts),
         'summary': get_summary_stats(records),
     }
 
 
-def build_dashboard_from_snapshots(start_date, end_date):
+def build_dashboard_from_snapshots(owner, start_date, end_date):
     """Build dashboard response from pre-computed monthly snapshots.
 
     Returns None if not all months in range have snapshots.
@@ -67,7 +68,7 @@ def build_dashboard_from_snapshots(start_date, end_date):
         else:
             current = current.replace(month=current.month + 1)
 
-    snapshots = list(FinancialSnapshot.objects.filter(date__in=months).order_by('date'))
+    snapshots = list(FinancialSnapshot.objects.filter(owner=owner, date__in=months).order_by('date'))
     if len(snapshots) != len(months):
         return None
 
@@ -102,7 +103,8 @@ def build_dashboard_from_snapshots(start_date, end_date):
 
     # Compute financial ratios from aggregate
     total_min_payment = sum(
-        float(d.minimum_payment) for d in Debt.objects.filter(status='active')
+        convert_to_cop(float(d.minimum_payment), d.currency or 'COP')
+        for d in Debt.objects.filter(owner=owner, status='active')
     )
     current_ratio = total_income / total_min_payment if total_min_payment > 0 else None
     essential_total = sum(
@@ -118,7 +120,7 @@ def build_dashboard_from_snapshots(start_date, end_date):
     # YoY growth from first snapshot vs year before
     first_snap = snapshots[0]
     prev_date = first_snap.date.replace(year=first_snap.date.year - 1)
-    prev_snap = FinancialSnapshot.objects.filter(date=prev_date).first()
+    prev_snap = FinancialSnapshot.objects.filter(owner=owner, date=prev_date).first()
     if prev_snap:
         prev_income = float(prev_snap.total_income)
         prev_expenses = float(prev_snap.total_expenses)
@@ -126,7 +128,7 @@ def build_dashboard_from_snapshots(start_date, end_date):
         prev_year_start = first_snap.date.replace(year=first_snap.date.year - 1)
         prev_year_end = (prev_year_start.replace(day=1) + timedelta(days=31)).replace(day=1) - timedelta(days=1)
         prev_records = FinancialRecord.objects.filter(
-            date__gte=prev_year_start, date__lte=prev_year_end
+            owner=owner, date__gte=prev_year_start, date__lte=prev_year_end
         )
         prev_income = float(prev_records.filter(type='income').aggregate(Sum('amount'))['amount__sum'] or 0)
         prev_expenses = float(prev_records.filter(type='expense').aggregate(Sum('amount'))['amount__sum'] or 0)
@@ -209,16 +211,20 @@ def get_monthly_trends(records, start_date, end_date):
     return [{'month': k, **v} for k, v in sorted(month_map.items())]
 
 
-def calculate_financial_ratios(records, start_date, end_date):
+def calculate_financial_ratios(owner, records, start_date, end_date):
     """Calculate key financial health ratios."""
     total_income = float(records.filter(type='income').aggregate(Sum('amount'))['amount__sum'] or 0)
     total_expenses = float(records.filter(type='expense').aggregate(Sum('amount'))['amount__sum'] or 0)
     net_cash_flow = total_income - total_expenses
 
     # Get active debts
-    debts = Debt.objects.filter(status='active')
-    total_debt = sum(float(d.current_balance) for d in debts)
-    total_min_payment = sum(float(d.minimum_payment) for d in debts)
+    debts = Debt.objects.filter(owner=owner, status='active')
+    total_debt = sum(
+        convert_to_cop(float(d.current_balance), d.currency or 'COP') for d in debts
+    )
+    total_min_payment = sum(
+        convert_to_cop(float(d.minimum_payment), d.currency or 'COP') for d in debts
+    )
 
     # Liquidity ratios (simplified - using cash flow as proxy)
     # Current ratio: current assets / current liabilities
@@ -251,7 +257,7 @@ def calculate_financial_ratios(records, start_date, end_date):
     prev_year_end = end_date.replace(year=current_year - 1)
 
     prev_records = FinancialRecord.objects.filter(
-        date__gte=prev_year_start, date__lte=prev_year_end
+        owner=owner, date__gte=prev_year_start, date__lte=prev_year_end
     )
     prev_income = float(prev_records.filter(type='income').aggregate(Sum('amount'))['amount__sum'] or 0)
     prev_expenses = float(prev_records.filter(type='expense').aggregate(Sum('amount'))['amount__sum'] or 0)
@@ -312,23 +318,58 @@ def get_expenses_per_category(records):
 
 
 def get_debt_summary(debts):
-    """Get summary of all active debts."""
-    total_balance = sum(float(d.current_balance) for d in debts)
-    total_min_payment = sum(float(d.minimum_payment) for d in debts)
-    total_interest = sum(float(d.monthly_interest) for d in debts)
+    """Get summary of all active debts, grouped by currency.
+
+    COP-converted totals are computed for the flat aggregate fields so
+    that mixed-currency debts are not summed naively.  The per-currency
+    breakdown preserves native amounts for each currency chart.
+    """
+    currencies = set(d.currency or 'COP' for d in debts)
+    has_multiple_currencies = len(currencies) > 1
+
+    total_balance_cop = sum(
+        convert_to_cop(float(d.current_balance), d.currency or 'COP') for d in debts
+    )
+    total_min_payment_cop = sum(
+        convert_to_cop(float(d.minimum_payment), d.currency or 'COP') for d in debts
+    )
+    total_interest_cop = sum(
+        convert_to_cop(float(d.monthly_interest), d.currency or 'COP') for d in debts
+    )
+
+    # Per-currency native breakdown (no conversion within each bucket)
+    by_currency = {}
+    by_currency_cop = {}
+    for debt in debts:
+        curr = debt.currency or 'COP'
+        if curr not in by_currency:
+            by_currency[curr] = {'count': 0, 'total_balance': 0, 'total_monthly_payment': 0, 'total_monthly_interest': 0}
+            by_currency_cop[curr] = {'total_balance': 0, 'total_monthly_payment': 0, 'total_monthly_interest': 0}
+        by_currency[curr]['count'] += 1
+        by_currency[curr]['total_balance'] += float(debt.current_balance)
+        by_currency[curr]['total_monthly_payment'] += float(debt.minimum_payment)
+        by_currency[curr]['total_monthly_interest'] += float(debt.monthly_interest)
+        by_currency_cop[curr]['total_balance'] += float(convert_to_cop(float(debt.current_balance), curr))
+        by_currency_cop[curr]['total_monthly_payment'] += float(convert_to_cop(float(debt.minimum_payment), curr))
+        by_currency_cop[curr]['total_monthly_interest'] += float(convert_to_cop(float(debt.monthly_interest), curr))
 
     by_type = {}
     for debt in debts:
         if debt.debt_type not in by_type:
-            by_type[debt.debt_type] = {'count': 0, 'total_balance': 0}
+            by_type[debt.debt_type] = {'count': 0, 'total_balance': 0, 'currency': debt.currency or 'COP'}
         by_type[debt.debt_type]['count'] += 1
         by_type[debt.debt_type]['total_balance'] += float(debt.current_balance)
 
     return {
         'total_debts': debts.count(),
-        'total_balance': total_balance,
-        'total_monthly_payment': total_min_payment,
-        'total_monthly_interest': total_interest,
+        'total_balance': total_balance_cop if has_multiple_currencies else sum(float(d.current_balance) for d in debts),
+        'total_monthly_payment': total_min_payment_cop if has_multiple_currencies else sum(float(d.minimum_payment) for d in debts),
+        'total_monthly_interest': total_interest_cop if has_multiple_currencies else sum(float(d.monthly_interest) for d in debts),
+        'has_multiple_currencies': has_multiple_currencies,
+        'active_currencies': sorted(currencies),
+        'exchange_rates': get_rate_map(),
+        'by_currency': by_currency,
+        'by_currency_cop': by_currency_cop,
         'by_type': by_type,
         'payoff_timeline': estimate_payoff_timeline(debts),
     }
@@ -351,7 +392,13 @@ def estimate_payoff_timeline(debts):
             continue
 
         payment = min_pay + extra_payment
-        if payment <= balance * rate:
+        if rate == 0:
+            # No interest: simple linear payoff
+            if payment <= 0:
+                months = float('inf')
+            else:
+                months = balance / payment
+        elif payment <= balance * rate:
             months = float('inf')
         else:
             months = math.log(payment / (payment - balance * rate)) / math.log(1 + rate)
@@ -360,6 +407,7 @@ def estimate_payoff_timeline(debts):
             'debt_id': str(debt.id),
             'name': debt.name,
             'type': debt.debt_type,
+            'currency': debt.currency or 'COP',
             'balance': balance,
             'interest_rate': float(debt.interest_rate),
             'minimum_payment': min_pay,

@@ -2,6 +2,11 @@
  * Individual debt detail page: a single statement sheet for one debt —
  * summary figures, paid-to-date progress and the amortization curve
  * showing how the outstanding balance is scheduled to be paid down.
+ *
+ * Multi-currency support:
+ * - Uses the debt's own `currency` field for native amounts.
+ * - A toggle switches the amortization chart between native currency
+ *   and COP-converted view (using rates from the profile).
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
@@ -24,9 +29,16 @@ import { Button } from '../ui/button';
 import { debtsApi } from '../../api/debts';
 import { profileApi } from '../../api/profile';
 import { getErrorMessage } from '../../api/client';
-import { fmtMoney } from '../../lib/money';
+import { fmtMoney, fmtMoneyCompact, convertToBase, BASE_CURRENCY } from '../../lib/money';
 import { buildAmortizationSchedule, monthLabel } from '../../lib/amortization';
 import type { Debt } from '../../types';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../ui/select';
 
 const cssVar = (name: string) =>
   getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#18251c';
@@ -51,14 +63,6 @@ const axisTick = {
   fontSize: 10,
   fill: 'var(--muted-foreground)',
 } as const;
-
-const compactMoney = (v: number, currency: string) => {
-  const symbol = currency === 'USD' ? '$' : `${currency} `;
-  const abs = Math.abs(v);
-  if (abs >= 1_000_000) return `${symbol}${(v / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `${symbol}${(v / 1_000).toFixed(1)}k`;
-  return `${symbol}${v.toFixed(0)}`;
-};
 
 function StatTile({
   label,
@@ -86,13 +90,17 @@ function StatTile({
 export default function DebtDetail() {
   const { id } = useParams<{ id: string }>();
   const [debt, setDebt] = useState<Debt | null>(null);
-  const [currency, setCurrency] = useState('USD');
+  const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const [chartView, setChartView] = useState<'native' | 'cop'>('native');
+
   useEffect(() => {
     if (!id) return;
-    profileApi.get().then((s) => setCurrency(s.currency || 'USD')).catch(() => {});
+    profileApi.get().then((s) => {
+      setExchangeRates(s.exchange_rates || {});
+    }).catch(() => {});
     debtsApi
       .get(id)
       .then(setDebt)
@@ -111,6 +119,26 @@ export default function DebtDetail() {
       status: debt.status,
     });
   }, [debt]);
+
+  const debtCurrency = debt?.currency || BASE_CURRENCY;
+  const displayCurrency = chartView === 'cop' ? BASE_CURRENCY : debtCurrency;
+
+  // Convert the entire amortization schedule to COP when in COP view
+  const displaySchedule = useMemo(() => {
+    if (!schedule || !debt) return schedule;
+    if (chartView === 'native') return schedule;
+    // COP view: convert each point's balance and paid amounts
+    return {
+      points: schedule.points.map((p) => ({
+        ...p,
+        balance: convertToBase(p.balance, debtCurrency, exchangeRates),
+        paid: convertToBase(p.paid, debtCurrency, exchangeRates),
+      })),
+      payoffKey: schedule.payoffKey,
+      neverPaysOff: schedule.neverPaysOff,
+      projectedInterest: convertToBase(schedule.projectedInterest, debtCurrency, exchangeRates),
+    };
+  }, [schedule, debt, chartView, debtCurrency, exchangeRates]);
 
   const paid = useMemo(() => {
     if (!debt) return 0;
@@ -189,15 +217,18 @@ export default function DebtDetail() {
       {/* Summary sheet */}
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
         <StatTile
-          label="Balance Outstanding"
-          value={fmtMoney(balance, currency)}
+          label={`Balance Outstanding (${debtCurrency})`}
+          value={fmtMoney(balance, debtCurrency)}
           tone={balance > 0 ? 'error' : 'success'}
         />
         <StatTile label="Annual Rate" value={`${rate.toFixed(2)}%`} />
-        <StatTile label="Monthly Payment" value={fmtMoney(minPayment, currency)} />
         <StatTile
-          label="Monthly Interest"
-          value={fmtMoney(monthlyInterest, currency)}
+          label={`Monthly Payment (${debtCurrency})`}
+          value={fmtMoney(minPayment, debtCurrency)}
+        />
+        <StatTile
+          label={`Monthly Interest (${debtCurrency})`}
+          value={fmtMoney(monthlyInterest, debtCurrency)}
           tone="error"
         />
       </div>
@@ -209,20 +240,20 @@ export default function DebtDetail() {
             <p className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
               Paid to date
             </p>
-            <p className="mt-1 font-mono text-2xl font-medium tabular-nums text-success">
-              {fmtMoney(paid, currency)}
-            </p>
-          </div>
-          <div className="h-2 w-full max-w-[14rem] overflow-hidden rounded-sm bg-muted">
-            <div
-              className="h-full rounded-sm bg-success transition-all"
-              style={{ width: `${Math.min(debt.progress_percentage, 100)}%` }}
-            />
-          </div>
-          <div className="font-mono text-xs tabular-nums text-muted-foreground">
-            {debt.progress_percentage}% ·{' '}
-            <span className="text-foreground">{fmtMoney(original, currency)}</span> original
-          </div>
+             <p className="mt-1 font-mono text-2xl font-medium tabular-nums text-success">
+               {fmtMoney(paid, debtCurrency)}
+             </p>
+           </div>
+           <div className="h-2 w-full max-w-[14rem] overflow-hidden rounded-sm bg-muted">
+             <div
+               className="h-full rounded-sm bg-success transition-all"
+               style={{ width: `${Math.min(debt.progress_percentage, 100)}%` }}
+             />
+           </div>
+           <div className="font-mono text-xs tabular-nums text-muted-foreground">
+             {debt.progress_percentage}% ·{' '}
+             <span className="text-foreground">{fmtMoney(original, debtCurrency)}</span> original
+           </div>
         </div>
         <div className="flex flex-wrap gap-x-8 gap-y-2 border-t border-border px-5 py-3">
           <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
@@ -231,10 +262,21 @@ export default function DebtDetail() {
           <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
             Due day — <span className="text-foreground">{debt.due_date}</span>
           </p>
-          {schedule.payoffKey && (
+          {debtCurrency !== BASE_CURRENCY && schedule.payoffKey && (
             <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
               Projected interest —{' '}
-              <span className="text-foreground">{fmtMoney(schedule.projectedInterest, currency)}</span>
+              <span className="text-foreground">
+                {fmtMoney(schedule.projectedInterest, debtCurrency)}{' '}
+                <span className="text-xs opacity-70">
+                  ({fmtMoney(convertToBase(schedule.projectedInterest, debtCurrency, exchangeRates), BASE_CURRENCY)} in {BASE_CURRENCY})
+                </span>
+              </span>
+            </p>
+          )}
+          {debtCurrency === BASE_CURRENCY && schedule.payoffKey && (
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+              Projected interest —{' '}
+              <span className="text-foreground">{fmtMoney(schedule.projectedInterest, debtCurrency)}</span>
             </p>
           )}
         </div>
@@ -256,7 +298,7 @@ export default function DebtDetail() {
               payment.
             </p>
           </div>
-          <div className="flex items-center gap-4 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-4 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
             <span className="flex items-center gap-1.5">
               <span className="h-2 w-2 bg-success" aria-hidden="true" />
               Paid to date
@@ -267,64 +309,82 @@ export default function DebtDetail() {
             </span>
           </div>
         </div>
+        <div className="flex items-center justify-end gap-2 border-b border-border px-5 py-2">
+          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+            {chartView === 'cop' ? `View: ${BASE_CURRENCY}` : `View: ${debtCurrency} (native)`}
+          </span>
+          <Select value={chartView} onValueChange={(v) => setChartView(v as 'native' | 'cop')}>
+            <SelectTrigger className="h-7 w-36 font-mono text-[10px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="native">{debtCurrency} (native)</SelectItem>
+              <SelectItem value="cop">{BASE_CURRENCY} (converted)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <div className="h-[340px] p-5">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={schedule.points} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="debtGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={cssVar('--error')} stopOpacity={0.24} />
-                  <stop offset="95%" stopColor={cssVar('--error')} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="2 4" stroke="var(--border)" />
-              <XAxis
-                dataKey="label"
-                tick={axisTick}
-                interval="preserveStartEnd"
-                minTickGap={24}
-              />
-              <YAxis
-                tick={axisTick}
-                tickFormatter={(v: number) => compactMoney(v, currency)}
-                width={64}
-              />
-              <Tooltip
-                contentStyle={tooltipStyle}
-                labelFormatter={(label) => `Month — ${label}`}
-                formatter={(value, name) => [fmtMoney(Number(value), currency), String(name)]}
-              />
-              <ReferenceLine
-                y={original}
-                stroke="var(--border)"
-                strokeDasharray="4 3"
-                label={{
-                  value: `Original ${compactMoney(original, currency)}`,
-                  position: 'insideTopLeft',
-                  fontSize: 10,
-                  fontFamily: "'IBM Plex Mono', monospace",
-                  fill: 'var(--muted-foreground)',
-                }}
-              />
-              <Area
-                type="monotone"
-                dataKey="balance"
-                name="Outstanding"
-                stroke={cssVar('--error')}
-                strokeWidth={2}
-                fill="url(#debtGrad)"
-                isAnimationActive={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="paid"
-                name="Paid to date"
-                stroke={cssVar('--success')}
-                strokeWidth={2}
-                dot={false}
-                isAnimationActive={false}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          {displaySchedule && (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={displaySchedule.points} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="debtGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={cssVar('--error')} stopOpacity={0.24} />
+                    <stop offset="95%" stopColor={cssVar('--error')} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="2 4" stroke="var(--border)" />
+                <XAxis
+                  dataKey="label"
+                  tick={axisTick}
+                  interval="preserveStartEnd"
+                  minTickGap={24}
+                />
+                <YAxis
+                  tick={axisTick}
+                  tickFormatter={(v: number) => fmtMoneyCompact(v, displayCurrency)}
+                  width={64}
+                />
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  labelFormatter={(label) => `Month — ${label}`}
+                  formatter={(value, name) => [fmtMoney(Number(value), displayCurrency), String(name)]}
+                />
+                <ReferenceLine
+                  y={Number(displaySchedule.points[0]?.balance > 0
+                    ? original
+                    : convertToBase(original, debtCurrency, exchangeRates))}
+                  stroke="var(--border)"
+                  strokeDasharray="4 3"
+                  label={{
+                    value: `Original ${fmtMoneyCompact(original, displayCurrency)}`,
+                    position: 'insideTopLeft',
+                    fontSize: 10,
+                    fontFamily: "'IBM Plex Mono', monospace",
+                    fill: 'var(--muted-foreground)',
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="balance"
+                  name="Outstanding"
+                  stroke={cssVar('--error')}
+                  strokeWidth={2}
+                  fill="url(#debtGrad)"
+                  isAnimationActive={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="paid"
+                  name="Paid to date"
+                  stroke={cssVar('--success')}
+                  strokeWidth={2}
+                  dot={false}
+                  isAnimationActive={false}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </CardBox>
 

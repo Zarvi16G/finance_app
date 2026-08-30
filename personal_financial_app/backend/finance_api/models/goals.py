@@ -1,4 +1,5 @@
 """ExpectedGoal model: user-defined financial goals."""
+from django.conf import settings
 from django.db import models
 
 
@@ -13,6 +14,13 @@ class ExpectedGoal(models.Model):
         ('achieved', 'Achieved'),
         ('failed', 'Failed'),
     ]
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='goals',
+        help_text="The user this goal belongs to",
+    )
 
     title = models.CharField(
         max_length=100,

@@ -14,6 +14,7 @@ from .choices import ChoiceView, CustomCategoryView, CustomTypeView
 from .profile import ProfileSettingsView
 from .analytics import FinancialAnalyticsView
 from .debts import DebtViewSet
+from .currency_rates import CurrencyRateViewSet
 from .snapshots import FinancialSnapshotViewSet
 from .auth import RegisterView, LoginView, LogoutView, MeView
 
@@ -35,6 +36,7 @@ __all__ = [
     'ProfileSettingsView',
     'FinancialAnalyticsView',
     'DebtViewSet',
+    'CurrencyRateViewSet',
     'FinancialSnapshotViewSet',
     'RegisterView',
     'LoginView',

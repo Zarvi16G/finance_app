@@ -2,6 +2,7 @@
 import json
 import re
 
+from django.db.models import Q
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -12,6 +13,13 @@ from ..services.ai import providers as ai_providers
 from ..services.ai import settings as ai_settings
 from ..services.ai import key_validation
 from ..services.chat_service import build_chat_prompt, parse_ai_reply, fallback_chat
+
+
+def _visible_choices(user, choice_type):
+    """Choices this user may use: their own custom rows plus the shared built-ins."""
+    return Choice.objects.filter(
+        Q(builtin=True) | Q(owner=user), choice_type=choice_type
+    )
 
 
 @extend_schema_view(
@@ -34,7 +42,9 @@ class AICategorizationView(APIView):
             return Response({'error': 'No transactions provided'}, status=status.HTTP_400_BAD_REQUEST)
 
         if transaction_ids:
-            transactions = ExtractedTransaction.objects.filter(id__in=transaction_ids)
+            transactions = ExtractedTransaction.objects.filter(
+                id__in=transaction_ids, statement__owner=request.user
+            )
         else:
             transactions = [{'id': None, 'description': d, 'amount': 0, 'date': ''} for d in descriptions]
 
@@ -50,19 +60,15 @@ class AICategorizationView(APIView):
             else:
                 txn_list.append(txn)
 
-        categories = list(Choice.objects.filter(
-            choice_type=Choice.CATEGORY
-        ).values_list('name', flat=True))
-        types = list(Choice.objects.filter(
-            choice_type=Choice.TYPE
-        ).values_list('name', flat=True))
+        categories = list(_visible_choices(request.user, Choice.CATEGORY).values_list('name', flat=True))
+        types = list(_visible_choices(request.user, Choice.TYPE).values_list('name', flat=True))
 
         memories = list(CategorizationMemory.objects.filter(
-            hit_count__gte=2
+            owner=request.user, hit_count__gte=2
         ).values('pattern', 'category', 'transaction_type', 'hit_count')[:20])
 
         try:
-            suggestions = ai_providers.suggest_categories(txn_list, categories, types, memories)
+            suggestions = ai_providers.suggest_categories(request.user, txn_list, categories, types, memories)
             if suggestions:
                 return Response({'results': suggestions})
             return Response({'error': 'AI categorization failed'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -90,21 +96,23 @@ class AIChatView(APIView):
         if not message:
             return Response({'error': 'Message is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        transactions = ExtractedTransaction.objects.filter(id__in=transaction_ids)
-        all_categories = list(Choice.objects.filter(choice_type=Choice.CATEGORY).values_list('name', flat=True))
-        all_types = list(Choice.objects.filter(choice_type=Choice.TYPE).values_list('name', flat=True))
+        transactions = ExtractedTransaction.objects.filter(
+            id__in=transaction_ids, statement__owner=request.user
+        )
+        all_categories = list(_visible_choices(request.user, Choice.CATEGORY).values_list('name', flat=True))
+        all_types = list(_visible_choices(request.user, Choice.TYPE).values_list('name', flat=True))
 
-        memories = CategorizationMemory.objects.filter(hit_count__gte=2)[:20]
+        memories = CategorizationMemory.objects.filter(owner=request.user, hit_count__gte=2)[:20]
         system_prompt = build_chat_prompt(message, transactions, all_categories, all_types, memories, history)
 
-        ai_reply = ai_providers.call_ai(system_prompt, message, history)
+        ai_reply = ai_providers.call_ai(request.user, system_prompt, message, history)
 
         if ai_reply:
-            reply, actions = parse_ai_reply(ai_reply)
+            reply, actions = parse_ai_reply(ai_reply, request.user)
             return Response({'reply': reply, 'actions': actions})
 
         # --- Rule-based fallback ---
-        reply, actions = fallback_chat(message, transactions, all_categories, all_types)
+        reply, actions = fallback_chat(message, transactions, all_categories, all_types, request.user)
         return Response({'reply': reply, 'actions': actions})
 
 
@@ -121,7 +129,7 @@ class AIChatView(APIView):
 )
 class AISettingsView(APIView):
     """
-    Manage AI provider settings and API keys.
+    Manage AI provider settings and API keys (per user).
 
     GET returns only masked keys (safe for display).
     PUT accepts {provider?, model?, api_key?} — an api_key is validated live
@@ -129,7 +137,7 @@ class AISettingsView(APIView):
     """
 
     def get(self, request):
-        return Response(ai_settings.get_public_config())
+        return Response(ai_settings.get_public_config(request.user))
 
     def put(self, request):
         provider = request.data.get('provider')
@@ -138,9 +146,9 @@ class AISettingsView(APIView):
 
         try:
             if provider or model is not None:
-                ai_settings.set_provider_and_model(provider=provider, model=model)
+                ai_settings.set_provider_and_model(request.user, provider=provider, model=model)
             if api_key:
-                target = provider or ai_settings.get_provider()
+                target = provider or ai_settings.get_provider(request.user)
                 verdict = key_validation.validate_api_key(target, api_key)
                 if not verdict['valid']:
                     return Response(
@@ -150,10 +158,10 @@ class AISettingsView(APIView):
                         },
                         status=status.HTTP_400_BAD_REQUEST,
                     )
-                ai_settings.save_api_key(target, api_key)
+                ai_settings.save_api_key(request.user, target, api_key)
         except ValueError as e:
             message = str(e)
             code = key_validation.CODE_INVALID_KEY if 'API key' in message else key_validation.CODE_UNKNOWN
             return Response({'error': message, 'error_code': code}, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response(ai_settings.get_public_config())
+        return Response(ai_settings.get_public_config(request.user))

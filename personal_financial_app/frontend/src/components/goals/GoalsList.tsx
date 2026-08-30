@@ -22,7 +22,7 @@ import {
 import { goalsApi } from '../../api/goals';
 import { profileApi } from '../../api/profile';
 import { getErrorMessage } from '../../api/client';
-import { fmtMoney } from '../../lib/money';
+import { fmtMoney, fmtMoneyCompact, convertToBase, convertFromBase } from '../../lib/money';
 import type { ExpectedGoal, GoalsAnalysis } from '../../types';
 import { Icon } from '@iconify/react';
 
@@ -217,7 +217,7 @@ export default function GoalsList() {
                           Current
                         </p>
                         <p className="mt-0.5 font-mono text-lg font-medium tabular-nums text-foreground">
-                          {fmtMoney(Number(goal.current_amount), currency)}
+                          {fmtMoneyCompact(Number(goal.current_amount), currency)}
                         </p>
                       </div>
                       <div className="text-right">
@@ -225,7 +225,7 @@ export default function GoalsList() {
                           Target
                         </p>
                         <p className="mt-0.5 font-mono text-lg font-medium tabular-nums text-foreground">
-                          {fmtMoney(Number(goal.target_amount), currency)}
+                          {fmtMoneyCompact(Number(goal.target_amount), currency)}
                         </p>
                       </div>
                     </div>

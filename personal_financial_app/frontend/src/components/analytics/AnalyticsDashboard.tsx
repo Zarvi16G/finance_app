@@ -34,7 +34,7 @@ import { Input } from '../ui/input';
 import { analyticsApi } from '../../api/ai';
 import { recordsApi, profileApi } from '../../api/profile';
 import { getErrorMessage } from '../../api/client';
-import { fmtMoney } from '../../lib/money';
+import { fmtMoney, fmtMoneyCompact, convertToBase, convertFromBase } from '../../lib/money';
 import type { DashboardData, FinancialRecord } from '../../types';
 import { Icon } from '@iconify/react';
 
@@ -647,7 +647,7 @@ export default function AnalyticsDashboard() {
                       </defs>
                       <CartesianGrid strokeDasharray="2 4" stroke="var(--border)" />
                       <XAxis dataKey="label" tick={axisTick} interval="preserveStartEnd" />
-                      <YAxis tick={axisTick} />
+                      <YAxis tick={{ ...axisTick, formatter: (v) => fmtMoneyCompact(v, currency) }} />
                       <Tooltip contentStyle={tooltipStyle} />
                       <Area
                         type="monotone"
@@ -735,7 +735,7 @@ export default function AnalyticsDashboard() {
                     <BarChart data={series} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="2 4" stroke="var(--border)" />
                       <XAxis dataKey="label" tick={axisTick} interval="preserveStartEnd" />
-                      <YAxis tick={axisTick} />
+                      <YAxis tick={{ ...axisTick, formatter: (v) => fmtMoneyCompact(v, currency) }} />
                       <Tooltip contentStyle={tooltipStyle} />
                       <Bar dataKey="net" name="Net" radius={[2, 2, 0, 0]}>
                         {series.map((p, i) => (
@@ -778,10 +778,36 @@ export default function AnalyticsDashboard() {
                     <p className="mt-1 font-mono text-2xl font-medium tabular-nums text-foreground">
                       {fmtMoney(debtSummary.total_balance, currency)}
                     </p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {debtSummary.total_debts} active debt{debtSummary.total_debts === 1 ? '' : 's'} ·
-                      min payment {fmtMoney(debtSummary.total_monthly_payment, currency)}
-                    </p>
+                    {debtSummary.has_multiple_currencies ? (
+                      <>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          All amounts shown in {currency} (base currency)
+                        </p>
+                        <div className="mt-2 space-y-0.5">
+                          {Object.entries(debtSummary.by_currency).map(([curr, data]) => {
+                            const copTotal = debtSummary.by_currency_cop?.[curr]?.total_balance ?? 0;
+                            return (
+                              <div key={curr} className="flex justify-between">
+                                <span className="text-xs text-muted-foreground">
+                                  {curr}
+                                </span>
+                                <span className="font-mono text-xs tabular-nums text-foreground">
+                                  {fmtMoney(data.total_balance, curr)}{' '}
+                                  <span className="text-muted-foreground opacity-60">
+                                    ({fmtMoney(copTotal, currency)})
+                                  </span>
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {debtSummary.total_debts} active debt{debtSummary.total_debts === 1 ? '' : 's'} ·
+                        min payment {fmtMoney(debtSummary.total_monthly_payment, currency)}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>

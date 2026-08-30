@@ -18,7 +18,9 @@ import {
   SelectValue,
 } from '../ui/select';
 import { statementsApi } from '../../api/statements';
+import { profileApi } from '../../api/profile';
 import { getErrorMessage } from '../../api/client';
+import { BASE_CURRENCY } from '../../lib/money';
 import { Icon } from '@iconify/react';
 
 const STATEMENT_TYPES = [
@@ -35,10 +37,21 @@ export default function StatementUploader() {
   const [file, setFile] = useState<File | null>(null);
   const [statementType, setStatementType] = useState('other');
   const [password, setPassword] = useState('');
+  const [statementCurrency, setStatementCurrency] = useState(BASE_CURRENCY);
+  const [availableCurrencies, setAvailableCurrencies] = useState<string[]>([BASE_CURRENCY]);
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    profileApi.get().then((s) => {
+      const rates = s.exchange_rates || {};
+      setStatementCurrency(s.currency || BASE_CURRENCY);
+      const codes = new Set([BASE_CURRENCY, ...Object.keys(rates)]);
+      setAvailableCurrencies(Array.from(codes).sort());
+    }).catch(() => {});
+  }, []);
 
   const handleFiles = (files: FileList | null) => {
     setError('');
@@ -66,7 +79,12 @@ export default function StatementUploader() {
     setUploading(true);
     setError('');
     try {
-      const statement = await statementsApi.upload(file, statementType, password || undefined);
+      const statement = await statementsApi.upload(
+        file,
+        statementType,
+        password || undefined,
+        statementCurrency !== BASE_CURRENCY ? statementCurrency : undefined,
+      );
       if (statement.status === 'completed') {
         navigate(`/statements/${statement.id}/review`);
       } else {
@@ -141,16 +159,31 @@ export default function StatementUploader() {
               </Select>
             </div>
             <div>
-              <Label htmlFor="password">Password (optional)</Label>
-              <Input
-                id="password"
-                type="password"
-                className="mt-2"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="For encrypted PDFs"
-              />
+              <Label htmlFor="statement-currency">Currency</Label>
+              <Select value={statementCurrency} onValueChange={setStatementCurrency}>
+                <SelectTrigger id="statement-currency" className="mt-2">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableCurrencies.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+          </div>
+          <div>
+            <Label htmlFor="password">Password (optional)</Label>
+            <Input
+              id="password"
+              type="password"
+              className="mt-2"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="For encrypted PDFs"
+            />
           </div>
 
           {error && <p className="rounded-md bg-error/10 px-3 py-2 text-sm text-error">{error}</p>}

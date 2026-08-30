@@ -1,4 +1,15 @@
-"""User preferences and customizable choice models (types, categories)."""
+"""User preferences and customizable choice models (types, categories).
+
+Phase 0b (multi-tenancy for config/vocabulary):
+
+* ``UserSetting`` is now one row per user (``owner`` OneToOne). It holds that
+  user's currency and their Fernet-encrypted AI provider keys, so keys never
+  leak between accounts.
+* ``CustomType`` / ``CustomCategory`` / ``Choice`` carry an optional ``owner``.
+  Rows with ``builtin=True`` (the seed vocabulary) keep ``owner=NULL`` and stay
+  a shared global catalog; user-created rows are owned and private.
+"""
+from django.conf import settings
 from django.db import models
 
 
@@ -9,7 +20,14 @@ class UserSetting(models.Model):
         ('anthropic', 'Anthropic'),
     ]
 
-    currency = models.CharField(max_length=10, default='USD')
+    owner = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='setting',
+        help_text="The user these settings belong to",
+    )
+
+    currency = models.CharField(max_length=10, default='COP')
 
     # AI model integration settings. API keys are stored Fernet-encrypted
     # (see crypto.py) inside ai_keys, keyed by provider name.
@@ -37,17 +55,37 @@ class UserSetting(models.Model):
 
 
 class CustomType(models.Model):
-    name = models.CharField(max_length=50, unique=True)
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='custom_types',
+        null=True, blank=True,
+        help_text="Owning user; NULL for the shared built-in vocabulary",
+    )
+    name = models.CharField(max_length=50)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['owner', 'name']
 
     def __str__(self):
         return self.name
 
 
 class CustomCategory(models.Model):
-    name = models.CharField(max_length=50, unique=True)
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='custom_categories',
+        null=True, blank=True,
+        help_text="Owning user; NULL for the shared built-in vocabulary",
+    )
+    name = models.CharField(max_length=50)
     transaction_type = models.CharField(max_length=10, default='expense')
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['owner', 'name']
 
     def __str__(self):
         return f"{self.name} ({self.transaction_type})"
@@ -60,6 +98,13 @@ class Choice(models.Model):
         (CATEGORY, 'Category'),
         (TYPE, 'Transaction Type'),
     ]
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='choices',
+        null=True, blank=True,
+        help_text="Owning user; NULL for built-in choices (builtin=True), which are shared",
+    )
     name = models.CharField(max_length=50)
     choice_type = models.CharField(max_length=20, choices=CHOICE_TYPES)
     transaction_type = models.CharField(max_length=10, default='expense', blank=True)
@@ -77,7 +122,7 @@ class Choice(models.Model):
 
     class Meta:
         ordering = ['sort_order', 'name']
-        unique_together = ['name', 'choice_type']
+        unique_together = ['owner', 'name', 'choice_type']
 
     def __str__(self):
         return f"{self.name} ({self.choice_type})"

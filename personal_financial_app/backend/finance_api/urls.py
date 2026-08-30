@@ -11,7 +11,7 @@ from .views import (
     ExportCSVView, ExportPDFView, AIAnalysisView, GoalsAnalysisView,
     BankStatementViewSet, ExtractedTransactionViewSet, AICategorizationView, AIChatView,
     AISettingsView, CustomCategoryView, CustomTypeView, ProfileSettingsView,
-    FinancialAnalyticsView, DebtViewSet, FinancialSnapshotViewSet,
+    FinancialAnalyticsView, DebtViewSet, CurrencyRateViewSet, FinancialSnapshotViewSet,
     ChoiceView,
     RegisterView, LoginView, LogoutView, MeView,
 )
@@ -21,6 +21,7 @@ router.register(r'records', FinancialRecordViewSet, basename='financial-record')
 router.register(r'goals', ExpectedGoalViewSet, basename='expected-goal')
 router.register(r'statements', BankStatementViewSet, basename='bank-statement')
 router.register(r'debts', DebtViewSet, basename='debt')
+router.register(r'exchange-rates', CurrencyRateViewSet, basename='currency-rate')
 router.register(r'snapshots', FinancialSnapshotViewSet, basename='financial-snapshot')
 router.register(r'extracted', ExtractedTransactionViewSet, basename='extracted-transaction')
 
