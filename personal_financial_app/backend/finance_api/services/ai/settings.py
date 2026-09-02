@@ -17,29 +17,34 @@ PROVIDER_LABELS = {
 }
 
 
-def get_setting() -> UserSetting:
-    setting, _ = UserSetting.objects.get_or_create(pk=1)
+def get_setting(user) -> UserSetting:
+    """Return the settings row for one user, creating it on first use.
+
+    Every caller must pass the request's user: these rows hold that person's
+    encrypted provider keys, and they used to live in a single shared row.
+    """
+    setting, _ = UserSetting.objects.get_or_create(owner=user)
     return setting
 
 
-def get_provider() -> str:
-    return get_setting().ai_provider or 'gemini'
+def get_provider(user) -> str:
+    return get_setting(user).ai_provider or 'gemini'
 
 
-def get_model(provider: str) -> str:
-    setting = get_setting()
+def get_model(user, provider: str) -> str:
+    setting = get_setting(user)
     if setting.ai_model and provider == (setting.ai_provider or 'gemini'):
         return setting.ai_model
     return PROVIDER_DEFAULT_MODELS.get(provider, PROVIDER_DEFAULT_MODELS['gemini'])
 
 
-def get_api_key(provider: str = None) -> str:
+def get_api_key(user, provider: str = None) -> str:
     """Return the decrypted API key for a provider.
 
     Falls back to the GEMINI_API_KEY environment variable for gemini when
     no key has been stored (backwards compatibility with the previous setup).
     """
-    setting = get_setting()
+    setting = get_setting(user)
     provider = provider or setting.ai_provider or 'gemini'
     encrypted = (setting.ai_keys or {}).get(provider, '')
     if encrypted:
@@ -50,21 +55,21 @@ def get_api_key(provider: str = None) -> str:
     return ''
 
 
-def save_api_key(provider: str, api_key: str) -> None:
+def save_api_key(user, provider: str, api_key: str) -> None:
     """Encrypt and store an API key for the given provider."""
     if not provider or provider not in PROVIDERS:
         raise ValueError(f'Unsupported provider: {provider!r}')
     if not api_key or not api_key.strip():
         raise ValueError('API key cannot be empty')
-    setting = get_setting()
+    setting = get_setting(user)
     keys = dict(setting.ai_keys or {})
     keys[provider] = encrypt_text(api_key.strip())
     setting.ai_keys = keys
     setting.save()
 
 
-def set_provider_and_model(provider: str = None, model: str = None) -> UserSetting:
-    setting = get_setting()
+def set_provider_and_model(user, provider: str = None, model: str = None) -> UserSetting:
+    setting = get_setting(user)
     if provider:
         if provider not in PROVIDERS:
             raise ValueError(f'Unsupported provider: {provider!r}')
@@ -75,9 +80,9 @@ def set_provider_and_model(provider: str = None, model: str = None) -> UserSetti
     return setting
 
 
-def get_public_config() -> dict:
+def get_public_config(user) -> dict:
     """Masked view of AI settings, safe to expose through the API."""
-    setting = get_setting()
+    setting = get_setting(user)
     keys = setting.ai_keys or {}
     return {
         'provider': setting.ai_provider or 'gemini',

@@ -26,8 +26,8 @@ class ExportCSVView(APIView):
     Adheres to the active user filters to allow exporting custom views.
     """
     def get(self, request, *args, **kwargs):
-        # Query initial records and apply current active filters
-        records = FinancialRecord.objects.all()
+        # Query this user's records and apply current active filters
+        records = FinancialRecord.objects.filter(owner=request.user)
         records = apply_filters_to_queryset(request, records)
 
         # Construct CSV HTTP response
@@ -65,8 +65,8 @@ class ExportPDFView(APIView):
     and a clean, structured ledger table utilizing ReportLab.
     """
     def get(self, request, *args, **kwargs):
-        # Retrieve and filter the record queryset
-        records = FinancialRecord.objects.all()
+        # Retrieve and filter this user's record queryset
+        records = FinancialRecord.objects.filter(owner=request.user)
         records = apply_filters_to_queryset(request, records)
 
         # Calculate totals for the summary box

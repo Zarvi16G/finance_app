@@ -36,11 +36,17 @@ def extract_pattern(description):
     return ' '.join(tokens[:4]) if tokens else description.lower()[:80]
 
 
-def record_memory(description, category, txn_type):
+def record_memory(description, category, txn_type, user):
+    """Remember a confirmed pattern for one user.
+
+    Memories feed AI prompts, so they are stored per user: one person's
+    spending vocabulary must never leak into another's suggestions.
+    """
     pattern = extract_pattern(description)
     if not pattern:
         return
     obj, created = CategorizationMemory.objects.get_or_create(
+        owner=user,
         pattern=pattern,
         category=category,
         transaction_type=txn_type,

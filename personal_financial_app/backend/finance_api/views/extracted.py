@@ -1,20 +1,37 @@
 """API views for extracted transactions (review/confirm/import)."""
 from django.utils import timezone
-from rest_framework import status, viewsets
+from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from ..models import FinancialRecord, ExtractedTransaction
 from ..serializers import FinancialRecordSerializer, ExtractedTransactionSerializer
 from ..services.categorization import record_memory
+from .mixins import OwnerScopedMixin
 
 
-class ExtractedTransactionViewSet(viewsets.ModelViewSet):
+class ExtractedTransactionViewSet(
+    OwnerScopedMixin,
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
     """
     ViewSet for managing extracted transactions awaiting review.
+
+    There is deliberately no create route: these rows only ever come from
+    parsing a statement, so a client-created one would have no statement and
+    therefore no owner. POSTing here used to raise an IntegrityError (500);
+    it now answers 405.
     """
     queryset = ExtractedTransaction.objects.all()
     serializer_class = ExtractedTransactionSerializer
+    # Extracted rows have no owner column of their own: they inherit it from
+    # the statement they were parsed out of.
+    owner_field = None
+    owner_lookup = 'statement__owner'
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -42,6 +59,7 @@ class ExtractedTransactionViewSet(viewsets.ModelViewSet):
 
         if transaction.is_reviewed:
             record = FinancialRecord.objects.filter(
+                owner=request.user,
                 amount=transaction.amount,
                 date=transaction.date,
                 description=transaction.cleaned_description,
@@ -54,6 +72,7 @@ class ExtractedTransactionViewSet(viewsets.ModelViewSet):
                 created = False
             else:
                 record = FinancialRecord.objects.create(
+                    owner=request.user,
                     type=txn_type, category=category, amount=transaction.amount,
                     date=transaction.date, description=description or transaction.cleaned_description,
                     account_bank=account_bank
@@ -61,6 +80,7 @@ class ExtractedTransactionViewSet(viewsets.ModelViewSet):
                 created = True
         else:
             record = FinancialRecord.objects.create(
+                owner=request.user,
                 type=txn_type, category=category, amount=transaction.amount,
                 date=transaction.date, description=description or transaction.cleaned_description,
                 account_bank=account_bank
@@ -74,7 +94,7 @@ class ExtractedTransactionViewSet(viewsets.ModelViewSet):
         transaction.needs_review = False
         transaction.save()
 
-        record_memory(transaction.cleaned_description, category, txn_type)
+        record_memory(transaction.cleaned_description, category, txn_type, request.user)
 
         statement = transaction.statement
         if created:
@@ -103,10 +123,13 @@ class ExtractedTransactionViewSet(viewsets.ModelViewSet):
                 continue
 
             try:
-                transaction = ExtractedTransaction.objects.get(id=txn_id)
+                # Scoped lookup: ids belonging to another user simply are not
+                # found, so a crafted payload cannot touch their transactions.
+                transaction = self.get_queryset().get(id=txn_id)
 
                 if transaction.is_reviewed:
                     record = FinancialRecord.objects.filter(
+                        owner=request.user,
                         amount=transaction.amount,
                         date=transaction.date,
                         description=transaction.cleaned_description,
@@ -118,12 +141,14 @@ class ExtractedTransactionViewSet(viewsets.ModelViewSet):
                         record.save()
                     else:
                         record = FinancialRecord.objects.create(
+                            owner=request.user,
                             type=txn_type, category=category, amount=transaction.amount,
                             date=transaction.date, description=txn_data.get('description') or transaction.cleaned_description,
                             account_bank=txn_data.get('account_bank', 'Imported from Statement')
                         )
                 else:
                     record = FinancialRecord.objects.create(
+                        owner=request.user,
                         type=txn_type, category=category, amount=transaction.amount,
                         date=transaction.date, description=txn_data.get('description') or transaction.cleaned_description,
                         account_bank=txn_data.get('account_bank', 'Imported from Statement')
@@ -141,7 +166,7 @@ class ExtractedTransactionViewSet(viewsets.ModelViewSet):
                 transaction.needs_review = False
                 transaction.save()
 
-                record_memory(transaction.cleaned_description, category, txn_type)
+                record_memory(transaction.cleaned_description, category, txn_type, request.user)
 
                 processed.append(record)
             except ExtractedTransaction.DoesNotExist:

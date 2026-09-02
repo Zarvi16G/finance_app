@@ -2,11 +2,15 @@ from datetime import date, timedelta
 from decimal import Decimal
 from unittest import mock
 
+from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from .models import FinancialRecord, UserSetting, BankStatement, ExpectedGoal, ExtractedTransaction
+from .models import (
+    FinancialRecord, UserSetting, BankStatement, ExpectedGoal,
+    ExtractedTransaction, Debt,
+)
 from .crypto import decrypt_text
 from .services.snapshot_service import compute_monthly_snapshot
 from .services.ai import key_validation
@@ -19,17 +23,24 @@ class AuthTestCase(TestCase):
     username = 'tester'
     password = 'S3cure!Passw0rd-123'
 
-    def setUp(self):
-        self.anonymous = APIClient()
+    def register(self, username, password=None):
+        """Register a user and return (api_client, user, tokens)."""
+        password = password or self.password
         response = self.anonymous.post(
             '/api/auth/register/',
-            {'username': self.username, 'password': self.password, 'email': 'tester@example.com'},
+            {'username': username, 'password': password, 'email': f'{username}@example.com'},
             format='json',
         )
         self.assertEqual(response.status_code, 201)
-        self.tokens = response.json()
-        self.client = APIClient()
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.tokens['access']}")
+        tokens = response.json()
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {tokens['access']}")
+        user = get_user_model().objects.get(username=username)
+        return client, user, tokens
+
+    def setUp(self):
+        self.anonymous = APIClient()
+        self.client, self.user, self.tokens = self.register(self.username)
 
 
 
@@ -132,19 +143,23 @@ class AnalyticsSnapshotViewTests(AuthTestCase):
         self.end = (self.month.replace(day=28) + timedelta(days=7)).replace(day=1) - timedelta(days=1)
 
         FinancialRecord.objects.create(
+            owner=self.user,
             type='expense', category='Food & Dining', amount=Decimal('100.00'), date=self.month
         )
         FinancialRecord.objects.create(
+            owner=self.user,
             type='expense', category='Food & Dining', amount=Decimal('50.00'), date=self.month.replace(day=15)
         )
         FinancialRecord.objects.create(
+            owner=self.user,
             type='expense', category='Utilities', amount=Decimal('75.00'), date=self.month.replace(day=10)
         )
         FinancialRecord.objects.create(
+            owner=self.user,
             type='income', category='Salary', amount=Decimal('500.00'), date=self.month.replace(day=5)
         )
 
-        compute_monthly_snapshot(self.month)
+        compute_monthly_snapshot(self.month, self.user)
 
     def test_snapshot_path_returns_category_counts(self):
         url = f"/api/analytics/?start_date={self.month.isoformat()}&end_date={self.end.isoformat()}"
@@ -219,6 +234,7 @@ class StatementUpdateTests(AuthTestCase):
     def setUp(self):
         super().setUp()
         self.statement = BankStatement.objects.create(
+            owner=self.user,
             file=SimpleUploadedFile('test.pdf', b'%PDF-1.4 minimal', content_type='application/pdf'),
             original_filename='test.pdf',
             statement_type='other',
@@ -246,6 +262,7 @@ class StatementUpdateTests(AuthTestCase):
             amount=Decimal('15.00'), transaction_type='expense',
         )
         record = FinancialRecord.objects.create(
+            owner=self.user,
             type='expense', category='Food & Dining', amount=Decimal('15.00'),
             date=date.today(), description='Coffee Shop',
         )
@@ -261,6 +278,7 @@ class GoalsApiTests(AuthTestCase):
 
     def _make_goal(self, **kwargs):
         data = {
+            'owner': self.user,
             'title': 'Emergency Fund',
             'target_amount': Decimal('5000000.00'),
             'current_amount': Decimal('1200000.50'),
@@ -355,7 +373,7 @@ class AISettingsViewTests(AuthTestCase):
         self.assertEqual(data['provider'], 'openai')
 
         # At rest, the stored value must be encrypted, not plaintext
-        setting = UserSetting.objects.get(pk=1)
+        setting = UserSetting.objects.get(owner=self.user)
         self.assertNotIn('sk-super-secret-1234', setting.ai_keys['openai'])
         self.assertEqual(decrypt_text(setting.ai_keys['openai']), 'sk-super-secret-1234')
 
@@ -415,7 +433,7 @@ class AISettingsViewTests(AuthTestCase):
             self.assertEqual(response.json()['error_code'], code)
             self.assertIn('error', response.json())
             # The rejected key must never be stored
-            setting = UserSetting.objects.get(pk=1)
+            setting = UserSetting.objects.get(owner=self.user)
             self.assertNotIn(code, str(setting.ai_keys))
 
     def test_put_overwrites_key(self):
@@ -423,7 +441,7 @@ class AISettingsViewTests(AuthTestCase):
             self.client.put('/api/ai-settings/', {'provider': 'gemini', 'api_key': 'first-key'}, format='json')
             response = self.client.put('/api/ai-settings/', {'provider': 'gemini', 'api_key': 'second-key'}, format='json')
         self.assertEqual(response.status_code, 200)
-        setting = UserSetting.objects.get(pk=1)
+        setting = UserSetting.objects.get(owner=self.user)
         self.assertEqual(decrypt_text(setting.ai_keys['gemini']), 'second-key')
 
 
@@ -468,3 +486,227 @@ class KeyValidationEngineTests(TestCase):
             verdict = key_validation.validate_api_key('anthropic', 'ant-key')
             self.assertFalse(verdict['valid'])
             self.assertEqual(verdict['code'], key_validation.CODE_NETWORK)
+
+
+class MultiTenancyIsolationTests(AuthTestCase):
+    """Every endpoint must expose one user's data only.
+
+    Before the owner-scoping fix each ViewSet queried `Model.objects.all()`,
+    so any authenticated account could read and mutate every other account's
+    financial data (OWASP API1: Broken Object Level Authorization).
+
+    Cross-user lookups must answer 404 rather than 403: a 403 would confirm
+    that the id exists, which is itself a leak.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # A second account with its own data, created straight through the ORM.
+        self.other_client, self.other, _ = self.register('intruder')
+
+        self.my_record = FinancialRecord.objects.create(
+            owner=self.user, type='expense', category='Food & Dining',
+            amount=Decimal('10.00'), date=date.today(), description='mine',
+        )
+        self.their_record = FinancialRecord.objects.create(
+            owner=self.other, type='expense', category='Shopping',
+            amount=Decimal('999.00'), date=date.today(), description='theirs',
+        )
+        self.their_goal = ExpectedGoal.objects.create(
+            owner=self.other, title='Their goal', target_amount=Decimal('100.00'),
+            current_amount=Decimal('10.00'), start_date=date.today(),
+            end_date=date.today() + timedelta(days=30),
+        )
+        self.their_debt = Debt.objects.create(
+            owner=self.other, name='Their card', debt_type='credit_card',
+            creditor='Bank', original_amount=Decimal('1000.00'),
+            current_balance=Decimal('800.00'), interest_rate=Decimal('20.00'),
+            minimum_payment=Decimal('50.00'), due_date=5, start_date=date.today(),
+        )
+        self.their_statement = BankStatement.objects.create(
+            owner=self.other,
+            file=SimpleUploadedFile('theirs.pdf', b'%PDF-1.4 theirs', content_type='application/pdf'),
+            original_filename='theirs.pdf', content_hash='hash-of-their-file',
+        )
+        self.their_txn = ExtractedTransaction.objects.create(
+            statement=self.their_statement, date=date.today(),
+            raw_description='Their coffee', cleaned_description='Their coffee',
+            amount=Decimal('5.00'), transaction_type='expense',
+        )
+
+    # --- Records ---------------------------------------------------------
+
+    def test_record_list_excludes_other_users(self):
+        response = self.client.get('/api/records/')
+        self.assertEqual(response.status_code, 200)
+        descriptions = [r['description'] for r in response.json()]
+        self.assertEqual(descriptions, ['mine'])
+
+    def test_record_detail_of_other_user_is_404(self):
+        response = self.client.get(f'/api/records/{self.their_record.id}/')
+        self.assertEqual(response.status_code, 404)
+
+    def test_record_update_of_other_user_is_404(self):
+        response = self.client.patch(
+            f'/api/records/{self.their_record.id}/', {'amount': '1.00'}, format='json'
+        )
+        self.assertEqual(response.status_code, 404)
+        self.their_record.refresh_from_db()
+        self.assertEqual(self.their_record.amount, Decimal('999.00'))
+
+    def test_record_delete_of_other_user_is_404(self):
+        response = self.client.delete(f'/api/records/{self.their_record.id}/')
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(FinancialRecord.objects.filter(id=self.their_record.id).exists())
+
+    def test_created_record_is_owned_by_requester(self):
+        response = self.client.post('/api/records/', {
+            'type': 'income', 'category': 'Salary', 'amount': '1500.00',
+            'date': date.today().isoformat(), 'description': 'payday',
+        }, format='json')
+        self.assertEqual(response.status_code, 201)
+        record = FinancialRecord.objects.get(id=response.json()['id'])
+        self.assertEqual(record.owner, self.user)
+
+    # --- Goals / debts / statements --------------------------------------
+
+    def test_goal_isolation(self):
+        self.assertEqual(self.client.get('/api/goals/').json(), [])
+        self.assertEqual(self.client.get(f'/api/goals/{self.their_goal.id}/').status_code, 404)
+
+    def test_goals_analysis_excludes_other_users(self):
+        response = self.client.get('/api/goals/analysis/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['summary']['total_goals'], 0)
+
+    def test_debt_isolation(self):
+        self.assertEqual(self.client.get('/api/debts/').json(), [])
+        self.assertEqual(self.client.get(f'/api/debts/{self.their_debt.id}/').status_code, 404)
+
+    def test_debt_payment_on_other_users_debt_is_404(self):
+        response = self.client.post(
+            f'/api/debts/{self.their_debt.id}/make_payment/', {'amount': '100'}, format='json'
+        )
+        self.assertEqual(response.status_code, 404)
+        self.their_debt.refresh_from_db()
+        self.assertEqual(self.their_debt.current_balance, Decimal('800.00'))
+
+    def test_statement_isolation(self):
+        self.assertEqual(self.client.get('/api/statements/').json(), [])
+        self.assertEqual(self.client.get(f'/api/statements/{self.their_statement.id}/').status_code, 404)
+
+    def test_statement_file_download_of_other_user_is_404(self):
+        response = self.client.get(f'/api/statements/{self.their_statement.id}/file/')
+        self.assertEqual(response.status_code, 404)
+
+    def test_extracted_transactions_query_param_cannot_cross_users(self):
+        response = self.client.get(
+            f'/api/extracted-transactions/?statement_id={self.their_statement.id}'
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_same_file_can_be_uploaded_by_two_users(self):
+        """Duplicate detection is per user, so it cannot leak another upload."""
+        pdf = SimpleUploadedFile('shared.pdf', b'%PDF-1.4 shared', content_type='application/pdf')
+        first = self.client.post('/api/statements/', {'file': pdf}, format='multipart')
+        self.assertIn(first.status_code, (201, 200))
+
+        same_pdf = SimpleUploadedFile('shared.pdf', b'%PDF-1.4 shared', content_type='application/pdf')
+        second = self.other_client.post('/api/statements/', {'file': same_pdf}, format='multipart')
+        self.assertNotEqual(second.status_code, 409)
+
+    # --- Extracted transactions ------------------------------------------
+
+    def test_extracted_transaction_isolation(self):
+        self.assertEqual(self.client.get('/api/extracted/').json(), [])
+        self.assertEqual(self.client.get(f'/api/extracted/{self.their_txn.id}/').status_code, 404)
+
+    def test_confirming_other_users_transaction_is_404(self):
+        response = self.client.post(
+            f'/api/extracted/{self.their_txn.id}/confirm/',
+            {'category': 'Food & Dining', 'type': 'expense'}, format='json',
+        )
+        self.assertEqual(response.status_code, 404)
+        self.their_txn.refresh_from_db()
+        self.assertFalse(self.their_txn.is_reviewed)
+
+    def test_extracted_transactions_cannot_be_created_directly(self):
+        """These rows only come from parsing a statement.
+
+        A client-created one would carry no statement and therefore no owner,
+        so the route is closed: 405, never a 500.
+        """
+        response = self.client.post('/api/extracted/', {
+            'date': date.today().isoformat(), 'amount': '12.00',
+            'transaction_type': 'expense',
+        }, format='json')
+        self.assertEqual(response.status_code, 405)
+
+    def test_bulk_confirm_skips_other_users_transactions(self):
+        response = self.client.post('/api/extracted/bulk_confirm/', {
+            'transactions': [
+                {'id': self.their_txn.id, 'category': 'Food & Dining', 'type': 'expense'}
+            ]
+        }, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['created'], 0)
+        self.their_txn.refresh_from_db()
+        self.assertFalse(self.their_txn.is_reviewed)
+
+    # --- Aggregates -------------------------------------------------------
+
+    def test_analytics_totals_exclude_other_users(self):
+        response = self.client.get('/api/analytics/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['summary']['total_expenses'], 10.0)
+
+    def test_snapshots_are_per_user(self):
+        """Both users can hold a snapshot for the same month without clashing."""
+        month = date.today().replace(day=1)
+        mine = self.client.post('/api/snapshots/generate/', {'date': month.isoformat()}, format='json')
+        theirs = self.other_client.post('/api/snapshots/generate/', {'date': month.isoformat()}, format='json')
+        self.assertEqual(mine.status_code, 200)
+        self.assertEqual(theirs.status_code, 200)
+        self.assertEqual(float(mine.json()['total_expenses']), 10.0)
+        self.assertEqual(float(theirs.json()['total_expenses']), 999.0)
+        self.assertEqual(len(self.client.get('/api/snapshots/').json()), 1)
+
+    def test_csv_export_excludes_other_users(self):
+        response = self.client.get('/api/export/csv/')
+        self.assertEqual(response.status_code, 200)
+        body = response.content.decode()
+        self.assertIn('mine', body)
+        self.assertNotIn('theirs', body)
+
+    # --- Settings and vocabulary -----------------------------------------
+
+    def test_ai_keys_are_per_user(self):
+        with mock.patch.object(key_validation, 'validate_api_key', return_value={'valid': True}):
+            self.client.put(
+                '/api/ai-settings/',
+                {'provider': 'openai', 'api_key': 'sk-mine-0001'},
+                format='json',
+            )
+        # The other account must not see or inherit that key
+        response = self.other_client.get('/api/ai-settings/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.json()['keys']['openai'])
+        self.assertEqual(
+            decrypt_text(UserSetting.objects.get(owner=self.user).ai_keys['openai']),
+            'sk-mine-0001',
+        )
+
+    def test_currency_setting_is_per_user(self):
+        self.client.put('/api/profile/', {'currency': 'COP'}, format='json')
+        self.assertEqual(self.other_client.get('/api/profile/').json()['currency'], 'USD')
+
+    def test_custom_categories_are_private_but_builtins_are_shared(self):
+        created = self.client.post('/api/custom-categories/', {'name': 'Mis Viajes', 'type': 'expense'}, format='json')
+        self.assertEqual(created.status_code, 200)
+
+        mine = [c['name'] for c in self.client.get('/api/custom-categories/').json()]
+        theirs = [c['name'] for c in self.other_client.get('/api/custom-categories/').json()]
+        self.assertIn('Mis Viajes', mine)
+        self.assertNotIn('Mis Viajes', theirs)
+        # The seeded catalog stays visible to everyone
+        self.assertIn('Food & Dining', theirs)

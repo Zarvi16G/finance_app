@@ -11,9 +11,11 @@ from ..models import FinancialRecord, FinancialSnapshot, Debt
 ESSENTIAL_CATEGORIES = ['Rent & Housing', 'Utilities', 'Food & Dining', 'Healthcare', 'Transportation']
 
 
-def build_dashboard_data(start_date, end_date):
-    """Live dashboard computation (used when snapshots are incomplete)."""
-    records = FinancialRecord.objects.filter(date__gte=start_date, date__lte=end_date)
+def build_dashboard_data(start_date, end_date, user):
+    """Live dashboard computation for one user (when snapshots are incomplete)."""
+    records = FinancialRecord.objects.filter(
+        owner=user, date__gte=start_date, date__lte=end_date
+    )
 
     income_data = records.filter(type='income').annotate(
         month=TruncMonth('date')
@@ -37,7 +39,7 @@ def build_dashboard_data(start_date, end_date):
         count=Count('id')
     ).order_by('-total')
 
-    debts = Debt.objects.filter(status='active')
+    debts = Debt.objects.filter(owner=user, status='active')
 
     return {
         'period': {'start': start_date, 'end': end_date},
@@ -45,14 +47,14 @@ def build_dashboard_data(start_date, end_date):
         'expense_by_category': list(expense_by_category),
         'income_by_category': list(income_by_category),
         'monthly_trends': get_monthly_trends(records, start_date, end_date),
-        'financial_ratios': calculate_financial_ratios(records, start_date, end_date),
+        'financial_ratios': calculate_financial_ratios(records, start_date, end_date, user),
         'debt_summary': get_debt_summary(debts),
         'summary': get_summary_stats(records),
     }
 
 
-def build_dashboard_from_snapshots(start_date, end_date):
-    """Build dashboard response from pre-computed monthly snapshots.
+def build_dashboard_from_snapshots(start_date, end_date, user):
+    """Build one user's dashboard response from pre-computed monthly snapshots.
 
     Returns None if not all months in range have snapshots.
     """
@@ -67,7 +69,9 @@ def build_dashboard_from_snapshots(start_date, end_date):
         else:
             current = current.replace(month=current.month + 1)
 
-    snapshots = list(FinancialSnapshot.objects.filter(date__in=months).order_by('date'))
+    snapshots = list(
+        FinancialSnapshot.objects.filter(owner=user, date__in=months).order_by('date')
+    )
     if len(snapshots) != len(months):
         return None
 
@@ -102,7 +106,7 @@ def build_dashboard_from_snapshots(start_date, end_date):
 
     # Compute financial ratios from aggregate
     total_min_payment = sum(
-        float(d.minimum_payment) for d in Debt.objects.filter(status='active')
+        float(d.minimum_payment) for d in Debt.objects.filter(owner=user, status='active')
     )
     current_ratio = total_income / total_min_payment if total_min_payment > 0 else None
     essential_total = sum(
@@ -118,7 +122,7 @@ def build_dashboard_from_snapshots(start_date, end_date):
     # YoY growth from first snapshot vs year before
     first_snap = snapshots[0]
     prev_date = first_snap.date.replace(year=first_snap.date.year - 1)
-    prev_snap = FinancialSnapshot.objects.filter(date=prev_date).first()
+    prev_snap = FinancialSnapshot.objects.filter(owner=user, date=prev_date).first()
     if prev_snap:
         prev_income = float(prev_snap.total_income)
         prev_expenses = float(prev_snap.total_expenses)
@@ -126,7 +130,7 @@ def build_dashboard_from_snapshots(start_date, end_date):
         prev_year_start = first_snap.date.replace(year=first_snap.date.year - 1)
         prev_year_end = (prev_year_start.replace(day=1) + timedelta(days=31)).replace(day=1) - timedelta(days=1)
         prev_records = FinancialRecord.objects.filter(
-            date__gte=prev_year_start, date__lte=prev_year_end
+            owner=user, date__gte=prev_year_start, date__lte=prev_year_end
         )
         prev_income = float(prev_records.filter(type='income').aggregate(Sum('amount'))['amount__sum'] or 0)
         prev_expenses = float(prev_records.filter(type='expense').aggregate(Sum('amount'))['amount__sum'] or 0)
@@ -209,14 +213,14 @@ def get_monthly_trends(records, start_date, end_date):
     return [{'month': k, **v} for k, v in sorted(month_map.items())]
 
 
-def calculate_financial_ratios(records, start_date, end_date):
-    """Calculate key financial health ratios."""
+def calculate_financial_ratios(records, start_date, end_date, user):
+    """Calculate key financial health ratios for one user."""
     total_income = float(records.filter(type='income').aggregate(Sum('amount'))['amount__sum'] or 0)
     total_expenses = float(records.filter(type='expense').aggregate(Sum('amount'))['amount__sum'] or 0)
     net_cash_flow = total_income - total_expenses
 
     # Get active debts
-    debts = Debt.objects.filter(status='active')
+    debts = Debt.objects.filter(owner=user, status='active')
     total_debt = sum(float(d.current_balance) for d in debts)
     total_min_payment = sum(float(d.minimum_payment) for d in debts)
 
@@ -251,7 +255,7 @@ def calculate_financial_ratios(records, start_date, end_date):
     prev_year_end = end_date.replace(year=current_year - 1)
 
     prev_records = FinancialRecord.objects.filter(
-        date__gte=prev_year_start, date__lte=prev_year_end
+        owner=user, date__gte=prev_year_start, date__lte=prev_year_end
     )
     prev_income = float(prev_records.filter(type='income').aggregate(Sum('amount'))['amount__sum'] or 0)
     prev_expenses = float(prev_records.filter(type='expense').aggregate(Sum('amount'))['amount__sum'] or 0)

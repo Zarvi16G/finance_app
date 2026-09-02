@@ -6,9 +6,10 @@ from drf_spectacular.utils import extend_schema, OpenApiTypes
 
 from ..models import ExpectedGoal
 from ..serializers import ExpectedGoalSerializer
+from .mixins import OwnerScopedMixin
 
 
-class ExpectedGoalViewSet(viewsets.ModelViewSet):
+class ExpectedGoalViewSet(OwnerScopedMixin, viewsets.ModelViewSet):
     """
     ViewSet for ExpectedGoal model (financial tracking goals).
     Provides CRUD functionality to set, track, and update goal statuses.
@@ -27,7 +28,7 @@ class GoalsAnalysisView(APIView):
     Returns progress per category with overall summary statistics.
     """
     def get(self, request, *args, **kwargs):
-        goals = ExpectedGoal.objects.all()
+        goals = ExpectedGoal.objects.filter(owner=request.user)
 
         # Group goals by category
         category_map = {}

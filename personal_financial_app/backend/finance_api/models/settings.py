@@ -1,4 +1,5 @@
 """User preferences and customizable choice models (types, categories)."""
+from django.conf import settings
 from django.db import models
 
 
@@ -8,6 +9,17 @@ class UserSetting(models.Model):
         ('openai', 'OpenAI'),
         ('anthropic', 'Anthropic'),
     ]
+
+    # One settings row per user. This used to be a single global row (pk=1),
+    # which meant every account shared the same currency and the same
+    # encrypted AI API keys.
+    owner = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='setting',
+        null=True,
+        help_text="The user these settings belong to",
+    )
 
     currency = models.CharField(max_length=10, default='USD')
 
@@ -36,18 +48,66 @@ class UserSetting(models.Model):
         return f"Currency: {self.currency} | AI: {self.ai_provider}"
 
 
+class OwnedVocabularyQuerySet(models.QuerySet):
+    """Shared scoping for the user vocabulary (types, categories, choices).
+
+    Rows with `builtin=True` (or no owner) are the seeded catalog shared by
+    everyone; anything a user creates is private to that user.
+    """
+
+    def visible_to(self, user):
+        return self.filter(models.Q(owner=user) | models.Q(owner__isnull=True))
+
+    def owned_by(self, user):
+        return self.filter(owner=user)
+
+
 class CustomType(models.Model):
-    name = models.CharField(max_length=50, unique=True)
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='custom_types',
+        null=True,
+        help_text="Owner of this custom type; null means seeded/global",
+    )
+    name = models.CharField(max_length=50)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = OwnedVocabularyQuerySet.as_manager()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['owner', 'name'],
+                name='uniq_customtype_owner_name',
+            ),
+        ]
 
     def __str__(self):
         return self.name
 
 
 class CustomCategory(models.Model):
-    name = models.CharField(max_length=50, unique=True)
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='custom_categories',
+        null=True,
+        help_text="Owner of this custom category; null means seeded/global",
+    )
+    name = models.CharField(max_length=50)
     transaction_type = models.CharField(max_length=10, default='expense')
     created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = OwnedVocabularyQuerySet.as_manager()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['owner', 'name'],
+                name='uniq_customcategory_owner_name',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.name} ({self.transaction_type})"
@@ -60,6 +120,13 @@ class Choice(models.Model):
         (CATEGORY, 'Category'),
         (TYPE, 'Transaction Type'),
     ]
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='choices',
+        null=True,
+        help_text="Owner of this choice; null means seeded/built-in and shared",
+    )
     name = models.CharField(max_length=50)
     choice_type = models.CharField(max_length=20, choices=CHOICE_TYPES)
     transaction_type = models.CharField(max_length=10, default='expense', blank=True)
@@ -75,9 +142,16 @@ class Choice(models.Model):
         null=True, blank=True, related_name='choice'
     )
 
+    objects = OwnedVocabularyQuerySet.as_manager()
+
     class Meta:
         ordering = ['sort_order', 'name']
-        unique_together = ['name', 'choice_type']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['owner', 'name', 'choice_type'],
+                name='uniq_choice_owner_name_type',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.name} ({self.choice_type})"

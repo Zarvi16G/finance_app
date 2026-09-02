@@ -8,9 +8,10 @@ from rest_framework.response import Response
 
 from ..models import Debt, FinancialRecord
 from ..serializers import DebtSerializer
+from .mixins import OwnerScopedMixin
 
 
-class DebtViewSet(viewsets.ModelViewSet):
+class DebtViewSet(OwnerScopedMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing user debts.
     """
@@ -50,6 +51,7 @@ class DebtViewSet(viewsets.ModelViewSet):
         # Create expense record for interest
         if interest > 0:
             FinancialRecord.objects.create(
+                owner=request.user,
                 type='expense',
                 category='Other',
                 amount=Decimal(str(interest)),

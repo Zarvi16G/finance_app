@@ -6,12 +6,14 @@ from ..models import FinancialRecord, FinancialSnapshot, Debt
 ESSENTIAL_CATEGORIES = ['Rent & Housing', 'Utilities', 'Food & Dining', 'Healthcare', 'Transportation']
 
 
-def compute_monthly_snapshot(date):
-    """Compute and store a complete monthly financial snapshot."""
-    snapshot, _ = FinancialSnapshot.objects.get_or_create(date=date.replace(day=1))
+def compute_monthly_snapshot(date, user):
+    """Compute and store one user's monthly financial snapshot."""
+    snapshot, _ = FinancialSnapshot.objects.get_or_create(
+        owner=user, date=date.replace(day=1)
+    )
 
     records = FinancialRecord.objects.filter(
-        date__year=date.year, date__month=date.month
+        owner=user, date__year=date.year, date__month=date.month
     )
 
     total_income = float(records.filter(type='income').aggregate(Sum('amount'))['amount__sum'] or 0)
@@ -37,7 +39,7 @@ def compute_monthly_snapshot(date):
         }
 
     # Debts
-    debts = Debt.objects.filter(status='active')
+    debts = Debt.objects.filter(owner=user, status='active')
     total_liabilities = sum(float(d.current_balance) for d in debts)
     total_min_payment = sum(float(d.minimum_payment) for d in debts)
 
@@ -59,7 +61,7 @@ def compute_monthly_snapshot(date):
     # Growth (YoY)
     prev_year = date.year - 1
     prev_records = FinancialRecord.objects.filter(
-        date__year=prev_year, date__month=date.month
+        owner=user, date__year=prev_year, date__month=date.month
     )
     prev_income = float(prev_records.filter(type='income').aggregate(Sum('amount'))['amount__sum'] or 0)
     prev_expenses = float(prev_records.filter(type='expense').aggregate(Sum('amount'))['amount__sum'] or 0)

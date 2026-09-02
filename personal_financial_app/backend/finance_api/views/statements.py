@@ -1,6 +1,7 @@
 """API views for bank statement upload and processing."""
 import hashlib
 
+from django.core.exceptions import ValidationError
 from django.http import FileResponse
 from django.utils import timezone
 from rest_framework import status, viewsets
@@ -11,9 +12,10 @@ from rest_framework.response import Response
 from ..models import BankStatement
 from ..serializers import BankStatementSerializer, ExtractedTransactionSerializer
 from ..services.statement_parser import process_statement
+from .mixins import OwnerScopedMixin
 
 
-class BankStatementViewSet(viewsets.ModelViewSet):
+class BankStatementViewSet(OwnerScopedMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing bank statement uploads and processing.
     """
@@ -34,8 +36,11 @@ class BankStatementViewSet(viewsets.ModelViewSet):
         content_hash = hashlib.sha256(file_obj.read()).hexdigest()
         file_obj.seek(0)
 
-        # Check for duplicate
-        existing = BankStatement.objects.filter(content_hash=content_hash).first()
+        # Check for duplicate — scoped to this user, so one account never
+        # learns that another account uploaded the same document.
+        existing = BankStatement.objects.filter(
+            owner=request.user, content_hash=content_hash
+        ).first()
         if existing:
             return Response({
                 'error': 'Duplicate file detected',
@@ -49,6 +54,7 @@ class BankStatementViewSet(viewsets.ModelViewSet):
 
         # Create statement record
         statement = BankStatement.objects.create(
+            owner=request.user,
             file=file_obj,
             original_filename=file_obj.name,
             content_hash=content_hash,
@@ -72,8 +78,8 @@ class BankStatementViewSet(viewsets.ModelViewSet):
         if not statement_id:
             return Response({'error': 'statement_id query parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            statement = BankStatement.objects.get(id=statement_id)
-        except (BankStatement.DoesNotExist, ValueError):
+            statement = self.get_queryset().get(id=statement_id)
+        except (BankStatement.DoesNotExist, ValueError, ValidationError):
             return Response({'error': 'Statement not found'}, status=status.HTTP_404_NOT_FOUND)
 
         transactions = statement.extracted_transactions.all()

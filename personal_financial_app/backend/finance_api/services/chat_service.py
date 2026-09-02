@@ -43,10 +43,11 @@ def build_chat_prompt(message, transactions, all_categories, all_types, memories
     )
 
 
-def parse_ai_reply(ai_reply):
+def parse_ai_reply(ai_reply, user):
     """Extract structured actions from the AI reply.
 
-    Returns (reply_text, actions, created_category_names).
+    Returns (reply_text, actions, created_category_names). Any category the
+    assistant creates belongs to the user who is chatting.
     """
     actions = []
     match = re.search(r'<actions>(.*?)</actions>', ai_reply, re.DOTALL)
@@ -64,7 +65,9 @@ def parse_ai_reply(ai_reply):
             name = a.get('name', '').strip()
             ttype = a.get('type', 'expense')
             if name and ttype in ('income', 'expense'):
-                CustomCategory.objects.get_or_create(name=name, transaction_type=ttype)
+                CustomCategory.objects.get_or_create(
+                    owner=user, name=name, defaults={'transaction_type': ttype}
+                )
                 applied_create.append(name)
         else:
             remaining.append(a)
@@ -75,7 +78,7 @@ def parse_ai_reply(ai_reply):
     return reply + extra, remaining
 
 
-def fallback_chat(message, transactions, all_categories, all_types):
+def fallback_chat(message, transactions, all_categories, all_types, user):
     """Rule-based chat assistant used when the AI provider is unavailable.
 
     Returns (reply_text, actions).
@@ -92,13 +95,15 @@ def fallback_chat(message, transactions, all_categories, all_types):
     if new_cat_match:
         cat_name = new_cat_match.group(1).strip().title()
         guessed_type = 'expense' if any(w in msg_lower for w in ['expense', 'spend', 'cost', 'buy']) else 'income'
-        CustomCategory.objects.get_or_create(name=cat_name, transaction_type=guessed_type)
+        CustomCategory.objects.get_or_create(
+            owner=user, name=cat_name, defaults={'transaction_type': guessed_type}
+        )
         reply_parts.append(f"Created new category '{cat_name}' ({guessed_type}). You can now select it in the dropdowns.")
 
     # --- Handle memory training ---
     memory_cat = None
     memory_type = None
-    for m in Choice.objects.filter(choice_type=Choice.CATEGORY):
+    for m in Choice.objects.visible_to(user).filter(choice_type=Choice.CATEGORY):
         if m.name.lower() in msg_lower:
             memory_cat = m.name
             memory_type = m.transaction_type
@@ -117,7 +122,7 @@ def fallback_chat(message, transactions, all_categories, all_types):
         for t in transactions:
             clean = t.cleaned_description
             if clean and any(w in msg_lower for w in clean.lower().split()[:3]):
-                record_memory(clean, memory_cat, memory_type or t.transaction_type)
+                record_memory(clean, memory_cat, memory_type or t.transaction_type, user)
         reply_parts.append(
             f"I'll remember to categorize matching transactions as '{memory_cat}' in the future."
         )
@@ -149,7 +154,7 @@ def fallback_chat(message, transactions, all_categories, all_types):
 
             if is_memory_request and matched_cat:
                 for t in transactions:
-                    record_memory(t.cleaned_description, matched_cat, matched_type or t.transaction_type)
+                    record_memory(t.cleaned_description, matched_cat, matched_type or t.transaction_type, user)
 
             if actions:
                 reply_parts.append(

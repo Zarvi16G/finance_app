@@ -65,6 +65,11 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'config.urls'
 
+# The initial migrations were generated with BigAutoField primary keys. Keeping
+# this explicit stops Django from proposing a downgrade to AutoField on every
+# makemigrations run (and silences the matching W042 checks).
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',

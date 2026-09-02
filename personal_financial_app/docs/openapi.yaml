@@ -1166,7 +1166,13 @@ paths:
   /api/extracted/:
     get:
       operationId: extracted_list
-      description: ViewSet for managing extracted transactions awaiting review.
+      description: |-
+        ViewSet for managing extracted transactions awaiting review.
+
+        There is deliberately no create route: these rows only ever come from
+        parsing a statement, so a client-created one would have no statement and
+        therefore no owner. POSTing here used to raise an IntegrityError (500);
+        it now answers 405.
       tags:
       - extracted
       security:
@@ -1179,32 +1185,6 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ExtractedTransaction'
-          description: ''
-    post:
-      operationId: extracted_create
-      description: ViewSet for managing extracted transactions awaiting review.
-      tags:
-      - extracted
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ExtractedTransactionRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/ExtractedTransactionRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/ExtractedTransactionRequest'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ExtractedTransaction'
           description: ''
   /api/extracted-transactions/:
     get:
@@ -1224,7 +1204,13 @@ paths:
   /api/extracted/{id}/:
     get:
       operationId: extracted_retrieve
-      description: ViewSet for managing extracted transactions awaiting review.
+      description: |-
+        ViewSet for managing extracted transactions awaiting review.
+
+        There is deliberately no create route: these rows only ever come from
+        parsing a statement, so a client-created one would have no statement and
+        therefore no owner. POSTing here used to raise an IntegrityError (500);
+        it now answers 405.
       parameters:
       - in: path
         name: id
@@ -1245,7 +1231,13 @@ paths:
           description: ''
     put:
       operationId: extracted_update
-      description: ViewSet for managing extracted transactions awaiting review.
+      description: |-
+        ViewSet for managing extracted transactions awaiting review.
+
+        There is deliberately no create route: these rows only ever come from
+        parsing a statement, so a client-created one would have no statement and
+        therefore no owner. POSTing here used to raise an IntegrityError (500);
+        it now answers 405.
       parameters:
       - in: path
         name: id
@@ -1278,7 +1270,13 @@ paths:
           description: ''
     patch:
       operationId: extracted_partial_update
-      description: ViewSet for managing extracted transactions awaiting review.
+      description: |-
+        ViewSet for managing extracted transactions awaiting review.
+
+        There is deliberately no create route: these rows only ever come from
+        parsing a statement, so a client-created one would have no statement and
+        therefore no owner. POSTing here used to raise an IntegrityError (500);
+        it now answers 405.
       parameters:
       - in: path
         name: id
@@ -1310,7 +1308,13 @@ paths:
           description: ''
     delete:
       operationId: extracted_destroy
-      description: ViewSet for managing extracted transactions awaiting review.
+      description: |-
+        ViewSet for managing extracted transactions awaiting review.
+
+        There is deliberately no create route: these rows only ever come from
+        parsing a statement, so a client-created one would have no statement and
+        therefore no owner. POSTing here used to raise an IntegrityError (500);
+        it now answers 405.
       parameters:
       - in: path
         name: id

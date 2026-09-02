@@ -4,9 +4,10 @@ from rest_framework import viewsets
 
 from ..models import FinancialRecord
 from ..serializers import FinancialRecordSerializer
+from .mixins import OwnerScopedMixin
 
 
-class FinancialRecordViewSet(viewsets.ModelViewSet):
+class FinancialRecordViewSet(OwnerScopedMixin, viewsets.ModelViewSet):
     """
     ViewSet for FinancialRecord model (Incomes & Expenses).
     Provides CRUD functionality with support for multiple filters

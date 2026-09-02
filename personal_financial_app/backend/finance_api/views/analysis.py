@@ -26,12 +26,12 @@ class AIAnalysisView(APIView):
     if no active external local LLM is detected.
     """
     def post(self, request, *args, **kwargs):
-        # 1. Fetch current financial dataset & apply active filtering
-        records = FinancialRecord.objects.all()
+        # 1. Fetch this user's financial dataset & apply active filtering
+        records = FinancialRecord.objects.filter(owner=request.user)
         records = apply_filters_to_queryset(request, records)
 
-        # 2. Retrieve financial goals
-        goals = ExpectedGoal.objects.all()
+        # 2. Retrieve this user's financial goals
+        goals = ExpectedGoal.objects.filter(owner=request.user)
 
         result = run_financial_analysis(records, goals)
 
