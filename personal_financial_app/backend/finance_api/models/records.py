@@ -1,4 +1,5 @@
 """FinancialRecord model: incomes & expenses."""
+from django.conf import settings
 from django.db import models
 
 
@@ -7,6 +8,14 @@ class FinancialRecord(models.Model):
         ('income', 'Income'),
         ('expense', 'Expense'),
     ]
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='financial_records',
+        null=True,
+        help_text="The user this record belongs to",
+    )
 
     CATEGORY_CHOICES = [
         ('Salary', 'Salary'),
