@@ -9,6 +9,14 @@ class FinancialRecord(models.Model):
         ('expense', 'Expense'),
     ]
 
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='financial_records',
+        null=True,
+        help_text="The user this record belongs to",
+    )
+
     CATEGORY_CHOICES = [
         ('Salary', 'Salary'),
         ('Investment', 'Investment'),
