@@ -17,7 +17,6 @@ class UserSetting(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='setting',
-        null=True,
         help_text="The user these settings belong to",
     )
 

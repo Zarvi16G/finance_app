@@ -12,22 +12,46 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 from datetime import timedelta
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 import os
+import sys
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# True while `manage.py test` runs. Used to relax settings the test client
+# cannot satisfy (auth throttling, the HTTPS redirect).
+_TESTING = 'test' in sys.argv
 
 load_dotenv(BASE_DIR / '.env')
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
 
 
-# Security: read secrets from the environment instead of hardcoding them.
-# `.env` is gitignored; generate a strong key for anything beyond local dev:
-#   python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-%u8f@dcxb)rtlv#2ee59#5srfid4av(7(l4xu&&hevz3zu6tx!')
+def env_flag(name, default):
+    """Read a boolean environment variable ('1', 'true' and 'yes' are true)."""
+    return os.environ.get(name, default).lower() in ('1', 'true', 'yes')
+
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DJANGO_DEBUG', 'true').lower() in ('1', 'true', 'yes')
+DEBUG = env_flag('DJANGO_DEBUG', 'true')
+
+# The secret key signs sessions and JWTs, and derives the Fernet key that
+# encrypts stored AI provider keys (see finance_api/crypto.py) — so it must be
+# set AND stay stable outside local development: changing it makes previously
+# stored keys undecryptable. `.env` is gitignored; generate one with:
+#   python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', '')
+if not SECRET_KEY:
+    if not DEBUG:
+        raise ImproperlyConfigured(
+            'DJANGO_SECRET_KEY must be set when DJANGO_DEBUG is off. '
+            'Generate one with: python -c "from django.core.management.utils '
+            'import get_random_secret_key; print(get_random_secret_key())"'
+        )
+    # Development only. Kept as the historical literal so AI keys already
+    # encrypted on a local machine stay readable; it is never used when
+    # DEBUG is off.
+    SECRET_KEY = 'django-insecure-%u8f@dcxb)rtlv#2ee59#5srfid4av(7(l4xu&&hevz3zu6tx!'
 
 ALLOWED_HOSTS = [
     host.strip()
@@ -127,13 +151,29 @@ CORS_ALLOWED_ORIGINS = [
 CORS_ALLOW_CREDENTIALS = False
 
 
+# Production hardening. Left off in development so `runserver` keeps working
+# over plain HTTP, and during tests because the test client speaks HTTP and
+# would only ever see 301s. Each flag can be overridden when a deployment
+# needs it (for example SECURE_SSL_REDIRECT=false while TLS terminates
+# upstream).
+if not DEBUG and not _TESTING:
+    SECURE_SSL_REDIRECT = env_flag('SECURE_SSL_REDIRECT', 'true')
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    # Tell Django a request is HTTPS when the proxy in front of it says so.
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    # HSTS: start low (a day) and raise it once HTTPS is proven stable —
+    # browsers remember this value and will refuse plain HTTP until it expires.
+    SECURE_HSTS_SECONDS = int(os.environ.get('SECURE_HSTS_SECONDS', '86400'))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = env_flag('SECURE_HSTS_INCLUDE_SUBDOMAINS', 'true')
+    SECURE_HSTS_PRELOAD = env_flag('SECURE_HSTS_PRELOAD', 'false')
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
+
+
 # REST Framework: JWT authentication on every endpoint by default.
 # Login / register are AllowAny explicitly, with per-scope throttling.
 # During test runs throttling is disabled so the suite never trips limits.
-import sys
-
-_TESTING = 'test' in sys.argv
-
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',

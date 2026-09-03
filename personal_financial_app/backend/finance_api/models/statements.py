@@ -35,7 +35,6 @@ class BankStatement(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='bank_statements',
-        null=True,
         help_text="The user this statement belongs to",
     )
     file = models.FileField(upload_to='bank_statements/')
@@ -120,7 +119,6 @@ class CategorizationMemory(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='categorization_memories',
-        null=True,
         help_text="The user whose confirmations produced this pattern",
     )
     pattern = models.CharField(max_length=255, db_index=True)

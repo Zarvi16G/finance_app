@@ -13,7 +13,6 @@ class FinancialRecord(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='financial_records',
-        null=True,
         help_text="The user this record belongs to",
     )
 

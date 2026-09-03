@@ -19,7 +19,6 @@ class ExpectedGoal(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='goals',
-        null=True,
         help_text="The user this goal belongs to",
     )
 

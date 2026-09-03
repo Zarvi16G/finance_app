@@ -1,0 +1,25 @@
+# Backend dependencies — pinned so every install is reproducible.
+# Requires Python 3.12+ (Django 6.0 does not support older versions).
+#
+#   python -m venv venv
+#   source venv/bin/activate        # Windows: venv\Scripts\activate
+#   pip install -r requirements.txt
+
+# Framework and API layer
+Django==6.0.6
+djangorestframework==3.18.0
+djangorestframework-simplejwt==5.5.1
+django-cors-headers==4.9.0
+drf-spectacular==0.30.0
+
+# Configuration and secrets
+python-dotenv==1.2.3
+cryptography==50.0.1
+
+# Bank statement processing (PDF parsing) and exports
+pdfplumber==0.11.10
+reportlab==5.0.1
+pillow==12.3.0
+
+# Outbound HTTP (AI providers, key validation)
+requests==2.34.2

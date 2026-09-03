@@ -11,7 +11,6 @@ class FinancialSnapshot(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='snapshots',
-        null=True,
         help_text="The user this snapshot summarizes",
     )
     date = models.DateField()  # First day of month

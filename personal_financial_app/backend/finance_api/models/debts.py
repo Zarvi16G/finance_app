@@ -33,7 +33,6 @@ class Debt(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='debts',
-        null=True,
         help_text="The user this debt belongs to",
     )
     name = models.CharField(max_length=100)
