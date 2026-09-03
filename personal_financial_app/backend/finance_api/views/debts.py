@@ -8,6 +8,8 @@ from rest_framework.response import Response
 
 from ..models import Debt, FinancialRecord
 from ..serializers import DebtSerializer
+from ..services import currency_service
+from ..services.snapshot_service import base_currency_for
 from .mixins import OwnerScopedMixin
 
 
@@ -17,6 +19,7 @@ class DebtViewSet(OwnerScopedMixin, viewsets.ModelViewSet):
     """
     queryset = Debt.objects.all()
     serializer_class = DebtSerializer
+    currency_field = 'currency'
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -52,6 +55,7 @@ class DebtViewSet(OwnerScopedMixin, viewsets.ModelViewSet):
         if interest > 0:
             FinancialRecord.objects.create(
                 owner=request.user,
+                currency=debt.currency,
                 type='expense',
                 category='Other',
                 amount=Decimal(str(interest)),
@@ -73,7 +77,11 @@ class DebtViewSet(OwnerScopedMixin, viewsets.ModelViewSet):
         # Avalanche (highest interest first)
         avalanche = sorted(debts, key=lambda d: float(d.interest_rate), reverse=True)
         # Snowball (smallest balance first)
-        snowball = sorted(debts, key=lambda d: float(d.current_balance))
+        # Compare balances in one currency, or the ordering is meaningless.
+        base = base_currency_for(request.user)
+        snowball = sorted(debts, key=lambda d: float(
+            currency_service.convert_safe(d.current_balance, d.currency or base, base)
+        ))
 
         return Response({
             'avalanche': DebtSerializer(avalanche, many=True).data,

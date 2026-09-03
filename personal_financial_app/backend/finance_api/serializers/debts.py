@@ -20,7 +20,7 @@ class DebtSerializer(serializers.ModelSerializer):
         model = Debt
         fields = [
             'id', 'name', 'debt_type', 'debt_type_display', 'original_amount',
-            'current_balance', 'interest_rate', 'minimum_payment', 'due_date',
+            'current_balance', 'currency', 'interest_rate', 'minimum_payment', 'due_date',
             'start_date', 'end_date', 'status', 'status_display', 'creditor',
             'notes', 'progress_percentage', 'remaining_balance', 'months_remaining',
             'monthly_interest', 'created_at', 'updated_at'

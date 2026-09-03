@@ -16,6 +16,7 @@ from .analytics import FinancialAnalyticsView
 from .debts import DebtViewSet
 from .snapshots import FinancialSnapshotViewSet
 from .auth import RegisterView, LoginView, LogoutView, MeView, TwoFactorLoginVerifyView
+from .currency import CurrencyListView, CurrencyConvertView
 from .two_factor import (
     TwoFactorStatusView, TwoFactorSetupView, TwoFactorEnableView,
     TwoFactorDisableView, TwoFactorBackupCodesView,
@@ -50,4 +51,6 @@ __all__ = [
     'TwoFactorEnableView',
     'TwoFactorDisableView',
     'TwoFactorBackupCodesView',
+    'CurrencyListView',
+    'CurrencyConvertView',
 ]

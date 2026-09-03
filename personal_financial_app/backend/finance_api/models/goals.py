@@ -40,6 +40,12 @@ class ExpectedGoal(models.Model):
         help_text="The current progress or recent status towards the target"
     )
 
+    currency = models.CharField(
+        max_length=3,
+        default='COP',
+        help_text="ISO 4217 code for both amounts above",
+    )
+
     start_date = models.DateField(
         help_text="The start date for tracking this goal"
     )

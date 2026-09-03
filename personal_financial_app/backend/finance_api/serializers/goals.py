@@ -21,6 +21,7 @@ class ExpectedGoalSerializer(serializers.ModelSerializer):
             'title',
             'target_amount',
             'current_amount',
+            'currency',
             'start_date',
             'end_date',
             'category',

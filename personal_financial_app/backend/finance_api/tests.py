@@ -4,16 +4,18 @@ from decimal import Decimal
 from unittest import mock
 
 import pyotp
+import requests
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from .models import (
     FinancialRecord, UserSetting, BankStatement, ExpectedGoal,
-    ExtractedTransaction, Debt,
+    ExtractedTransaction, Debt, Currency, ExchangeRate,
 )
 from .crypto import decrypt_text
+from .services import currency_service
 from .services.snapshot_service import compute_monthly_snapshot
 from .services.ai import key_validation
 from .services.statement_detection import detect_statement_info
@@ -488,6 +490,166 @@ class KeyValidationEngineTests(TestCase):
             verdict = key_validation.validate_api_key('anthropic', 'ant-key')
             self.assertFalse(verdict['valid'])
             self.assertEqual(verdict['code'], key_validation.CODE_NETWORK)
+
+
+@override_settings(EXCHANGERATE_API_KEY='test-key-not-a-real-one')
+class CurrencyServiceTests(TestCase):
+    """Rate caching, precision and rounding. The provider is always mocked."""
+
+    def setUp(self):
+        Currency.objects.update_or_create(
+            code='COP', defaults={'name': 'Colombian Peso', 'decimals': 0}
+        )
+        Currency.objects.update_or_create(
+            code='USD', defaults={'name': 'US Dollar', 'decimals': 2}
+        )
+
+    def _provider(self, rates=None):
+        """Patch the HTTP call, not our own code, so the seam is exercised."""
+        payload = {
+            'result': 'success',
+            'conversion_rates': rates or {'USD': 1, 'COP': 4000, 'EUR': 0.92},
+        }
+        response = mock.Mock(status_code=200)
+        response.json.return_value = payload
+        return mock.patch('requests.get', return_value=response)
+
+    def test_rate_is_fetched_once_and_then_served_from_cache(self):
+        with self._provider() as get:
+            currency_service.get_rate('USD', 'COP')
+            currency_service.get_rate('USD', 'COP')
+            currency_service.get_rate('USD', 'COP')
+        # Three lookups, one network call: the dashboard must not hammer the
+        # metered free tier.
+        self.assertEqual(get.call_count, 1)
+
+    def test_same_currency_never_calls_the_provider(self):
+        with mock.patch('requests.get', side_effect=AssertionError('must not be called')):
+            self.assertEqual(currency_service.get_rate('COP', 'COP'), Decimal('1'))
+
+    def test_conversion_uses_the_targets_decimals(self):
+        with self._provider():
+            # COP is written without cents
+            self.assertEqual(currency_service.convert('10', 'USD', 'COP'), Decimal('40000'))
+            # USD keeps two
+            self.assertEqual(
+                currency_service.convert('40000', 'COP', 'USD').as_tuple().exponent, -2
+            )
+
+    def test_rounding_is_half_even(self):
+        """Half-up would bias every total upward; banker's rounding does not."""
+        with self._provider(rates={'USD': 1, 'COP': 1}):
+            self.assertEqual(currency_service.convert('0.125', 'USD', 'USD'), Decimal('0.12'))
+            self.assertEqual(currency_service.convert('0.135', 'USD', 'USD'), Decimal('0.14'))
+
+    def test_a_stale_rate_is_used_when_the_provider_is_down(self):
+        with self._provider():
+            currency_service.get_rate('USD', 'COP')
+
+        stale = ExchangeRate.objects.get(base='USD', target='COP')
+        stale.rate_date = date.today() - timedelta(days=3)
+        stale.save()
+
+        with mock.patch('requests.get', side_effect=requests.RequestException('down')):
+            # An old rate beats a dashboard that refuses to render.
+            self.assertEqual(currency_service.get_rate('USD', 'COP'), Decimal('4000'))
+
+    def test_missing_rate_raises_rather_than_guessing(self):
+        with mock.patch('requests.get', side_effect=requests.RequestException('down')):
+            with self.assertRaises(currency_service.ExchangeRateUnavailable):
+                currency_service.get_rate('USD', 'JPY')
+
+    def test_convert_safe_leaves_the_amount_alone_when_no_rate_exists(self):
+        with mock.patch('requests.get', side_effect=requests.RequestException('down')):
+            self.assertEqual(
+                currency_service.convert_safe(Decimal('50'), 'USD', 'JPY'), Decimal('50')
+            )
+
+    def test_refresh_only_caches_known_currencies(self):
+        with self._provider(rates={'USD': 1, 'COP': 4000, 'XYZ': 7}):
+            currency_service.refresh_rates('USD')
+        self.assertFalse(ExchangeRate.objects.filter(target='XYZ').exists())
+        self.assertTrue(ExchangeRate.objects.filter(target='COP').exists())
+
+
+@override_settings(EXCHANGERATE_API_KEY='test-key-not-a-real-one')
+class MultiCurrencyAggregationTests(AuthTestCase):
+    """Totals must never add pesos to dollars."""
+
+    def setUp(self):
+        super().setUp()
+        for code, name, decimals in (('COP', 'Colombian Peso', 0), ('USD', 'US Dollar', 2)):
+            Currency.objects.update_or_create(
+                code=code, defaults={'name': name, 'decimals': decimals}
+            )
+        setting, _ = UserSetting.objects.get_or_create(owner=self.user)
+        setting.currency = 'COP'
+        setting.save()
+
+        # 1 USD = 4000 COP for the whole test.
+        ExchangeRate.objects.create(
+            base='USD', target='COP', rate=Decimal('4000'), rate_date=date.today()
+        )
+        ExchangeRate.objects.create(
+            base='COP', target='COP', rate=Decimal('1'), rate_date=date.today()
+        )
+
+        self.month = date.today().replace(day=1)
+        FinancialRecord.objects.create(
+            owner=self.user, type='expense', category='Shopping',
+            amount=Decimal('100000'), currency='COP', date=self.month,
+        )
+        FinancialRecord.objects.create(
+            owner=self.user, type='expense', category='Shopping',
+            amount=Decimal('10'), currency='USD', date=self.month,
+        )
+
+    def test_sum_in_converts_each_currency_before_adding(self):
+        records = FinancialRecord.objects.filter(owner=self.user)
+        # 100.000 COP + (10 USD * 4000) = 140.000 COP
+        self.assertEqual(currency_service.sum_in(records, 'COP'), Decimal('140000'))
+
+    def test_analytics_totals_are_in_the_base_currency(self):
+        response = self.client.get('/api/analytics/')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['base_currency'], 'COP')
+        self.assertEqual(data['summary']['total_expenses'], 140000.0)
+
+    def test_snapshot_totals_are_in_the_base_currency(self):
+        snapshot = compute_monthly_snapshot(self.month, self.user)
+        self.assertEqual(float(snapshot.total_expenses), 140000.0)
+
+    def test_new_records_inherit_the_users_base_currency(self):
+        response = self.client.post('/api/records/', {
+            'type': 'income', 'category': 'Salary', 'amount': '500',
+            'date': self.month.isoformat(),
+        }, format='json')
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()['currency'], 'COP')
+
+    def test_an_explicit_currency_is_respected(self):
+        response = self.client.post('/api/records/', {
+            'type': 'income', 'category': 'Salary', 'amount': '500',
+            'currency': 'USD', 'date': self.month.isoformat(),
+        }, format='json')
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()['currency'], 'USD')
+
+    def test_currencies_endpoint_lists_the_catalog_and_base(self):
+        response = self.client.get('/api/currencies/')
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body['base_currency'], 'COP')
+        self.assertIn('COP', [c['code'] for c in body['currencies']])
+
+    def test_convert_endpoint_uses_the_cached_rate(self):
+        with mock.patch('requests.get', side_effect=AssertionError('must not be called')):
+            response = self.client.post('/api/currencies/convert/', {
+                'amount': '10', 'from': 'USD', 'to': 'COP',
+            }, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['converted'], '40000')
 
 
 class TwoFactorTests(AuthTestCase):
@@ -976,8 +1138,9 @@ class MultiTenancyIsolationTests(AuthTestCase):
         )
 
     def test_currency_setting_is_per_user(self):
-        self.client.put('/api/profile/', {'currency': 'COP'}, format='json')
-        self.assertEqual(self.other_client.get('/api/profile/').json()['currency'], 'USD')
+        self.client.put('/api/profile/', {'currency': 'USD'}, format='json')
+        self.assertEqual(self.client.get('/api/profile/').json()['currency'], 'USD')
+        self.assertEqual(self.other_client.get('/api/profile/').json()['currency'], 'COP')
 
     def test_custom_categories_are_private_but_builtins_are_shared(self):
         created = self.client.post('/api/custom-categories/', {'name': 'Mis Viajes', 'type': 'expense'}, format='json')

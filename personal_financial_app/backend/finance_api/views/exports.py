@@ -7,7 +7,9 @@ from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema, OpenApiTypes
 
 from ..models import FinancialRecord
+from ..services import currency_service
 from ..services.filters import apply_filters_to_queryset
+from ..services.snapshot_service import base_currency_for
 
 # PDF Report Generation Imports (ReportLab)
 from reportlab.lib.pagesizes import letter
@@ -36,7 +38,7 @@ class ExportCSVView(APIView):
 
         writer = csv.writer(response)
         # Write headers
-        writer.writerow(['ID', 'Type', 'Category', 'Amount', 'Date', 'Bank Account', 'Description', 'Created At'])
+        writer.writerow(['ID', 'Type', 'Category', 'Amount', 'Currency', 'Date', 'Bank Account', 'Description', 'Created At'])
 
         # Write record values
         for record in records:
@@ -45,6 +47,7 @@ class ExportCSVView(APIView):
                 record.type.capitalize(),
                 record.category,
                 record.amount,
+                record.currency,
                 record.date,
                 record.account_bank,
                 record.description or '',
@@ -70,8 +73,10 @@ class ExportPDFView(APIView):
         records = apply_filters_to_queryset(request, records)
 
         # Calculate totals for the summary box
-        total_income = records.filter(type='income').aggregate(Sum('amount'))['amount__sum'] or 0.00
-        total_expense = records.filter(type='expense').aggregate(Sum('amount'))['amount__sum'] or 0.00
+        # Totals are shown in the user's base currency; each row keeps its own.
+        base = base_currency_for(request.user)
+        total_income = currency_service.sum_in(records.filter(type='income'), base)
+        total_expense = currency_service.sum_in(records.filter(type='expense'), base)
         net_balance = total_income - total_expense
 
         # Set up PDF Response headers
@@ -126,16 +131,16 @@ class ExportPDFView(APIView):
 
         # Title and Subtitle Header
         story.append(Paragraph("Personal Financial Statement", title_style))
-        story.append(Paragraph("Official Bank Account Extract & Transaction Ledger", subtitle_style))
+        story.append(Paragraph(f"Official Bank Account Extract &amp; Transaction Ledger — totals in {base}", subtitle_style))
         story.append(Spacer(1, 10))
 
         # Financial Summary Section Box
         balance_color = '#10b981' if net_balance >= 0 else '#ef4444' # Green or Red
         summary_data = [
             [
-                Paragraph(f"<b>Total Incomes:</b> <font color='#10b981'>${total_income:,.2f}</font>", summary_text_style),
-                Paragraph(f"<b>Total Expenses:</b> <font color='#ef4444'>${total_expense:,.2f}</font>", summary_text_style),
-                Paragraph(f"<b>Net Balance:</b> <font color='{balance_color}'>${net_balance:,.2f}</font>", summary_text_style)
+                Paragraph(f"<b>Total Incomes:</b> <font color='#10b981'>{total_income:,.2f} {base}</font>", summary_text_style),
+                Paragraph(f"<b>Total Expenses:</b> <font color='#ef4444'>{total_expense:,.2f} {base}</font>", summary_text_style),
+                Paragraph(f"<b>Net Balance:</b> <font color='{balance_color}'>{net_balance:,.2f} {base}</font>", summary_text_style)
             ]
         ]
 
@@ -156,6 +161,7 @@ class ExportPDFView(APIView):
         story.append(Paragraph("Detailed Transaction Ledger", heading_style))
 
         table_headers = ['Date', 'Type', 'Category', 'Bank Account', 'Description', 'Amount']
+        # Rows keep their original currency, so each amount names it.
         table_data = [table_headers]
 
         for record in records:
@@ -168,7 +174,7 @@ class ExportPDFView(APIView):
                 record.category,
                 record.account_bank,
                 record.description or '-',
-                Paragraph(f"<font color='{amt_color}'><b>{amt_prefix}${record.amount:,.2f}</b></font>", cell_style)
+                Paragraph(f"<font color='{amt_color}'><b>{amt_prefix}{record.amount:,.2f} {record.currency}</b></font>", cell_style)
             ])
 
         # Table Layout Config

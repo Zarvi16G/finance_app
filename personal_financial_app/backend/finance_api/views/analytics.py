@@ -47,7 +47,9 @@ class FinancialAnalyticsView(APIView):
         snapshot_data = build_dashboard_from_snapshots(start_date, end_date, request.user)
         if snapshot_data is not None:
             debts = Debt.objects.filter(owner=request.user, status='active')
-            snapshot_data['debt_summary'] = get_debt_summary(debts)
+            snapshot_data['debt_summary'] = get_debt_summary(
+                debts, snapshot_data['base_currency']
+            )
             return Response(snapshot_data)
 
         # Fall back to live computation

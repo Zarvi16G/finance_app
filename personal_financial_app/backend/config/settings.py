@@ -26,6 +26,13 @@ _TESTING = 'test' in sys.argv
 load_dotenv(BASE_DIR / '.env')
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
 
+# Exchange rates. This key is server-wide on purpose: the USD->COP rate is the
+# same for every account, so one key and one shared cache serve everyone.
+# (The AI keys are per user instead, because each person spends their own
+# quota.) Get one free at https://www.exchangerate-api.com/
+EXCHANGERATE_API_KEY = os.getenv('EXCHANGERATE_API_KEY', '')
+FX_PROVIDER = os.getenv('FX_PROVIDER', 'exchangerate-api')
+
 
 def env_flag(name, default):
     """Read a boolean environment variable ('1', 'true' and 'yes' are true)."""

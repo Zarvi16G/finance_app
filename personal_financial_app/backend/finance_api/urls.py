@@ -16,6 +16,7 @@ from .views import (
     RegisterView, LoginView, LogoutView, MeView,
     TwoFactorLoginVerifyView, TwoFactorStatusView, TwoFactorSetupView,
     TwoFactorEnableView, TwoFactorDisableView, TwoFactorBackupCodesView,
+    CurrencyListView, CurrencyConvertView,
 )
 
 router = DefaultRouter()
@@ -57,6 +58,8 @@ urlpatterns = [
     path('choices/', ChoiceView.as_view(), name='choices'),
     path('choices/<int:pk>/', ChoiceView.as_view(), name='choice-detail'),
     path('profile/', ProfileSettingsView.as_view(), name='profile'),
+    path('currencies/', CurrencyListView.as_view(), name='currencies'),
+    path('currencies/convert/', CurrencyConvertView.as_view(), name='currencies-convert'),
     path('extracted-transactions/',
          BankStatementViewSet.as_view({'get': 'extracted_transactions'}),
          name='extracted-transactions'),

@@ -16,13 +16,17 @@ _SYSTEM_INSTRUCTIONS = (
 )
 
 
-def run_financial_analysis(records, goals):
+def run_financial_analysis(records, goals, base_currency=None):
     """Aggregate financial context and ask Ollama (or the rule fallback).
 
-    `records` should be a pre-filtered FinancialRecord queryset.
+    `records` should be a pre-filtered FinancialRecord queryset. Every figure
+    handed to the model is expressed in `base_currency`, so advice is never
+    based on pesos and dollars added together.
     Returns {'analysis': str, 'used_fallback': bool}.
     """
-    context, category_breakdown, goals_data = _build_financial_context(records, goals)
+    context, category_breakdown, goals_data = _build_financial_context(
+        records, goals, base_currency
+    )
 
     response_text, used_fallback = _ask_ollama(_SYSTEM_INSTRUCTIONS, context['prompt_body'])
     if used_fallback:
@@ -33,29 +37,38 @@ def run_financial_analysis(records, goals):
     return {'analysis': response_text, 'used_fallback': used_fallback}
 
 
-def _build_financial_context(records, goals):
-    from django.db.models import Sum
+def _build_financial_context(records, goals, base_currency=None):
+    from . import currency_service
 
-    total_income = float(records.filter(type='income').aggregate(Sum('amount'))['amount__sum'] or 0.00)
-    total_expense = float(records.filter(type='expense').aggregate(Sum('amount'))['amount__sum'] or 0.00)
+    base = currency_service.normalize(base_currency or currency_service.DEFAULT_BASE)
+
+    total_income = float(currency_service.sum_in(records.filter(type='income'), base))
+    total_expense = float(currency_service.sum_in(records.filter(type='expense'), base))
     net_savings = total_income - total_expense
     savings_rate = (net_savings / total_income * 100) if total_income > 0 else 0
 
-    category_breakdown = list(
-        records.filter(type='expense')
-        .values('category')
-        .annotate(total=Sum('amount'))
-        .order_by('-total')
-    )
-    category_breakdown_formatted = {item['category']: float(item['total']) for item in category_breakdown}
+    expenses = records.filter(type='expense')
+    category_totals = {
+        category: float(currency_service.sum_in(expenses.filter(category=category), base))
+        for category in expenses.values_list('category', flat=True).distinct()
+    }
+    category_breakdown = [
+        {'category': category, 'total': total}
+        for category, total in sorted(category_totals.items(), key=lambda item: -item[1])
+    ]
+    category_breakdown_formatted = dict(category_totals)
 
     goals_data = []
     for goal in goals:
         progress = (float(goal.current_amount) / float(goal.target_amount) * 100) if goal.target_amount > 0 else 0
         goals_data.append({
             'title': goal.title,
-            'target_amount': float(goal.target_amount),
-            'current_amount': float(goal.current_amount),
+            'target_amount': float(
+                currency_service.convert_safe(goal.target_amount, goal.currency or base, base)
+            ),
+            'current_amount': float(
+                currency_service.convert_safe(goal.current_amount, goal.currency or base, base)
+            ),
             'progress_percentage': round(progress, 2),
             'status': goal.status,
             'end_date': goal.end_date.strftime('%Y-%m-%d')

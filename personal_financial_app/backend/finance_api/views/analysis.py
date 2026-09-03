@@ -7,6 +7,7 @@ from drf_spectacular.utils import extend_schema, OpenApiTypes
 from ..models import FinancialRecord, ExpectedGoal
 from ..services.analysis_service import run_financial_analysis
 from ..services.filters import apply_filters_to_queryset
+from ..services.snapshot_service import base_currency_for
 
 
 @extend_schema(
@@ -33,6 +34,6 @@ class AIAnalysisView(APIView):
         # 2. Retrieve this user's financial goals
         goals = ExpectedGoal.objects.filter(owner=request.user)
 
-        result = run_financial_analysis(records, goals)
+        result = run_financial_analysis(records, goals, base_currency_for(request.user))
 
         return Response(result, status=status.HTTP_200_OK)

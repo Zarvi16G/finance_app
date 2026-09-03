@@ -40,6 +40,11 @@ class Debt(models.Model):
     creditor = models.CharField(max_length=100)
     original_amount = models.DecimalField(max_digits=12, decimal_places=2)
     current_balance = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(
+        max_length=3,
+        default='COP',
+        help_text="ISO 4217 code for every amount on this debt",
+    )
     interest_rate = models.DecimalField(max_digits=5, decimal_places=2)  # Annual percentage rate
     minimum_payment = models.DecimalField(max_digits=10, decimal_places=2)
     due_date = models.PositiveSmallIntegerField(

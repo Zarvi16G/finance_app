@@ -1,9 +1,24 @@
-"""Monthly financial snapshot computation."""
+"""Monthly financial snapshot computation.
+
+Every total here is expressed in the owner's base currency. Amounts are stored
+in whatever currency they happened in, so the sums go through
+`currency_service.sum_in` rather than a plain SQL Sum, which would happily add
+pesos to dollars.
+"""
 from django.db.models import Sum, Avg, Count
 
-from ..models import FinancialRecord, FinancialSnapshot, Debt
+from ..models import FinancialRecord, FinancialSnapshot, Debt, UserSetting
+from . import currency_service
 
 ESSENTIAL_CATEGORIES = ['Rent & Housing', 'Utilities', 'Food & Dining', 'Healthcare', 'Transportation']
+
+
+def base_currency_for(user) -> str:
+    """The currency this user reads their totals in."""
+    setting = UserSetting.objects.filter(owner=user).only('currency').first()
+    return currency_service.normalize(
+        setting.currency if setting and setting.currency else currency_service.DEFAULT_BASE
+    )
 
 
 def compute_monthly_snapshot(date, user):
@@ -12,42 +27,49 @@ def compute_monthly_snapshot(date, user):
         owner=user, date=date.replace(day=1)
     )
 
+    base = base_currency_for(user)
     records = FinancialRecord.objects.filter(
         owner=user, date__year=date.year, date__month=date.month
     )
 
-    total_income = float(records.filter(type='income').aggregate(Sum('amount'))['amount__sum'] or 0)
-    total_expenses = float(records.filter(type='expense').aggregate(Sum('amount'))['amount__sum'] or 0)
+    total_income = float(currency_service.sum_in(records.filter(type='income'), base))
+    total_expenses = float(currency_service.sum_in(records.filter(type='expense'), base))
     net_cash_flow = total_income - total_expenses
     savings_rate = (net_cash_flow / total_income * 100) if total_income > 0 else 0
 
-    # Expense category breakdown
-    expenses = records.filter(type='expense').values('category').annotate(
-        total=Sum('amount'),
-        avg=Avg('amount'),
-        count=Count('id')
-    ).order_by('-total')
-    total_expense_amount = sum(float(e['total']) for e in expenses)
+    # Expense category breakdown, each category totalled in the base currency
+    expense_records = records.filter(type='expense')
+    counts = {
+        row['category']: row['count']
+        for row in expense_records.values('category').annotate(count=Count('id'))
+    }
+    category_totals = {
+        category: float(currency_service.sum_in(
+            expense_records.filter(category=category), base
+        ))
+        for category in counts
+    }
+    total_expense_amount = sum(category_totals.values())
     expenses_per_category = {}
-    for e in expenses:
-        cat_total = float(e['total'])
-        expenses_per_category[e['category']] = {
+    for category, cat_total in sorted(category_totals.items(), key=lambda item: -item[1]):
+        count = counts[category]
+        expenses_per_category[category] = {
             'total': cat_total,
-            'average': float(e['avg']),
-            'count': e['count'],
+            'average': round(cat_total / count, 2) if count else 0,
+            'count': count,
             'percentage': round(cat_total / total_expense_amount * 100, 2) if total_expense_amount > 0 else 0
         }
 
     # Debts
     debts = Debt.objects.filter(owner=user, status='active')
-    total_liabilities = sum(float(d.current_balance) for d in debts)
-    total_min_payment = sum(float(d.minimum_payment) for d in debts)
+    total_liabilities = float(currency_service.sum_in(debts, base, field='current_balance'))
+    total_min_payment = float(currency_service.sum_in(debts, base, field='minimum_payment'))
 
     # Liquidity ratios
     current_ratio = (total_income / total_min_payment) if total_min_payment > 0 else None
-    essential_expenses = float(records.filter(
-        type='expense', category__in=ESSENTIAL_CATEGORIES
-    ).aggregate(Sum('amount'))['amount__sum'] or 0)
+    essential_expenses = float(currency_service.sum_in(
+        records.filter(type='expense', category__in=ESSENTIAL_CATEGORIES), base
+    ))
     quick_ratio = (total_income - essential_expenses) / total_min_payment if total_min_payment > 0 else None
     cash_ratio = current_ratio
 
@@ -63,8 +85,8 @@ def compute_monthly_snapshot(date, user):
     prev_records = FinancialRecord.objects.filter(
         owner=user, date__year=prev_year, date__month=date.month
     )
-    prev_income = float(prev_records.filter(type='income').aggregate(Sum('amount'))['amount__sum'] or 0)
-    prev_expenses = float(prev_records.filter(type='expense').aggregate(Sum('amount'))['amount__sum'] or 0)
+    prev_income = float(currency_service.sum_in(prev_records.filter(type='income'), base))
+    prev_expenses = float(currency_service.sum_in(prev_records.filter(type='expense'), base))
     income_growth_yoy = ((total_income - prev_income) / prev_income * 100) if prev_income > 0 else 0
     expense_growth_yoy = ((total_expenses - prev_expenses) / prev_expenses * 100) if prev_expenses > 0 else 0
     net_worth_growth = income_growth_yoy - expense_growth_yoy

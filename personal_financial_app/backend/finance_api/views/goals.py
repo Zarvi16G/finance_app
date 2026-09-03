@@ -6,6 +6,8 @@ from drf_spectacular.utils import extend_schema, OpenApiTypes
 
 from ..models import ExpectedGoal
 from ..serializers import ExpectedGoalSerializer
+from ..services import currency_service
+from ..services.snapshot_service import base_currency_for
 from .mixins import OwnerScopedMixin
 
 
@@ -16,6 +18,7 @@ class ExpectedGoalViewSet(OwnerScopedMixin, viewsets.ModelViewSet):
     """
     queryset = ExpectedGoal.objects.all()
     serializer_class = ExpectedGoalSerializer
+    currency_field = 'currency'
 
 
 @extend_schema(
@@ -29,6 +32,12 @@ class GoalsAnalysisView(APIView):
     """
     def get(self, request, *args, **kwargs):
         goals = ExpectedGoal.objects.filter(owner=request.user)
+        # Goals may be saved in different currencies; every figure below is
+        # reported in the user's base currency so the totals mean something.
+        base = base_currency_for(request.user)
+
+        def in_base(amount, goal):
+            return float(currency_service.convert_safe(amount, goal.currency or base, base))
 
         # Group goals by category
         category_map = {}
@@ -45,18 +54,21 @@ class GoalsAnalysisView(APIView):
                 }
 
             cat = category_map[category]
-            cat['total_target'] += float(goal.target_amount)
-            cat['total_current'] += float(goal.current_amount)
+            cat['total_target'] += in_base(goal.target_amount, goal)
+            cat['total_current'] += in_base(goal.current_amount, goal)
             cat['goals_count'] += 1
             if goal.status == 'achieved':
                 cat['achieved_count'] += 1
 
+            # Progress compares two amounts in the same currency, so it needs
+            # no conversion — only the reported figures do.
             progress = (float(goal.current_amount) / float(goal.target_amount) * 100) if goal.target_amount > 0 else 0
             cat['goals'].append({
                 'id': goal.id,
                 'title': goal.title,
-                'target_amount': float(goal.target_amount),
-                'current_amount': float(goal.current_amount),
+                'currency': goal.currency or base,
+                'target_amount': in_base(goal.target_amount, goal),
+                'current_amount': in_base(goal.current_amount, goal),
                 'progress_percentage': round(progress, 2),
                 'status': goal.status,
                 'start_date': goal.start_date.strftime('%Y-%m-%d'),
@@ -81,6 +93,7 @@ class GoalsAnalysisView(APIView):
         overall_progress = (total_current / total_target * 100) if total_target > 0 else 0
 
         return Response({
+            'base_currency': base,
             'summary': {
                 'total_target': total_target,
                 'total_current': total_current,

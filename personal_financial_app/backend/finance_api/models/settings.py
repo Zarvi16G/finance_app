@@ -25,7 +25,9 @@ class UserSetting(models.Model):
         help_text="The user these settings belong to",
     )
 
-    currency = models.CharField(max_length=10, default='USD')
+    # The currency every dashboard total is expressed in. Amounts keep their
+    # own currency; this is only the lens they are read through.
+    currency = models.CharField(max_length=10, default='COP')
 
     # AI model integration settings. API keys are stored Fernet-encrypted
     # (see crypto.py) inside ai_keys, keyed by provider name.

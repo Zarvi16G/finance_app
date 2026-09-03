@@ -15,6 +15,7 @@ class FinancialRecordViewSet(OwnerScopedMixin, viewsets.ModelViewSet):
     """
     queryset = FinancialRecord.objects.all()
     serializer_class = FinancialRecordSerializer
+    currency_field = 'currency'
 
     def get_queryset(self):
         """

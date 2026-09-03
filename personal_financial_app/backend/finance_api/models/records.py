@@ -58,6 +58,14 @@ class FinancialRecord(models.Model):
         help_text="Monetary value of the transaction"
     )
 
+    # The currency the money actually moved in. Never rewritten: totals in the
+    # user's base currency are derived at read time (see currency_service).
+    currency = models.CharField(
+        max_length=3,
+        default='COP',
+        help_text="ISO 4217 code of the amount above",
+    )
+
     date = models.DateField(
         help_text="Date when the transaction occurred"
     )

@@ -513,6 +513,68 @@ paths:
                 type: object
                 additionalProperties: {}
           description: ''
+  /api/currencies/:
+    get:
+      operationId: currencies_retrieve
+      description: Lists the currencies the app can hold amounts in, plus the caller's
+        base currency.
+      tags:
+      - currencies
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/currencies/convert/:
+    post:
+      operationId: currencies_convert_create
+      description: Converts {amount, from, to}. `to` defaults to the caller's base
+        currency. Rates come from the daily cache, not a live call.
+      tags:
+      - currencies
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: {}
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: {}
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '503':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/custom-categories/:
     get:
       operationId: custom_categories_retrieve
@@ -2482,6 +2544,10 @@ components:
           type: string
           format: decimal
           pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        currency:
+          type: string
+          description: ISO 4217 code for every amount on this debt
+          maxLength: 3
         interest_rate:
           type: string
           format: decimal
@@ -2575,6 +2641,11 @@ components:
           type: string
           format: decimal
           pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        currency:
+          type: string
+          minLength: 1
+          description: ISO 4217 code for every amount on this debt
+          maxLength: 3
         interest_rate:
           type: string
           format: decimal
@@ -2667,6 +2738,10 @@ components:
           format: decimal
           pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
           description: The current progress or recent status towards the target
+        currency:
+          type: string
+          description: ISO 4217 code for both amounts above
+          maxLength: 3
         start_date:
           type: string
           format: date
@@ -2732,6 +2807,11 @@ components:
           format: decimal
           pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
           description: The current progress or recent status towards the target
+        currency:
+          type: string
+          minLength: 1
+          description: ISO 4217 code for both amounts above
+          maxLength: 3
         start_date:
           type: string
           format: date
@@ -2904,6 +2984,10 @@ components:
           format: decimal
           pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
           description: Monetary value of the transaction
+        currency:
+          type: string
+          description: ISO 4217 code of the amount above
+          maxLength: 3
         date:
           type: string
           format: date
@@ -2963,6 +3047,11 @@ components:
           format: decimal
           pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
           description: Monetary value of the transaction
+        currency:
+          type: string
+          minLength: 1
+          description: ISO 4217 code of the amount above
+          maxLength: 3
         date:
           type: string
           format: date
@@ -3242,6 +3331,11 @@ components:
           type: string
           format: decimal
           pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        currency:
+          type: string
+          minLength: 1
+          description: ISO 4217 code for every amount on this debt
+          maxLength: 3
         interest_rate:
           type: string
           format: decimal
@@ -3292,6 +3386,11 @@ components:
           format: decimal
           pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
           description: The current progress or recent status towards the target
+        currency:
+          type: string
+          minLength: 1
+          description: ISO 4217 code for both amounts above
+          maxLength: 3
         start_date:
           type: string
           format: date
@@ -3371,6 +3470,11 @@ components:
           format: decimal
           pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
           description: Monetary value of the transaction
+        currency:
+          type: string
+          minLength: 1
+          description: ISO 4217 code of the amount above
+          maxLength: 3
         date:
           type: string
           format: date
