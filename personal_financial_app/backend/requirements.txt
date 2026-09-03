@@ -16,6 +16,10 @@ drf-spectacular==0.30.0
 python-dotenv==1.2.3
 cryptography==50.0.1
 
+# Two-factor authentication (TOTP codes and the enrollment QR)
+pyotp==2.10.0
+qrcode==8.2
+
 # Bank statement processing (PDF parsing) and exports
 pdfplumber==0.11.10
 reportlab==5.0.1

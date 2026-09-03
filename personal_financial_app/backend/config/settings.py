@@ -185,6 +185,9 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'login': None if _TESTING else os.environ.get('THROTTLE_LOGIN', '10/min'),
         'register': None if _TESTING else os.environ.get('THROTTLE_REGISTER', '10/hour'),
+        # A 6-digit code is only a million combinations: without a limit it
+        # falls to brute force in minutes.
+        'mfa': None if _TESTING else os.environ.get('THROTTLE_MFA', '10/min'),
     },
 }
 
@@ -213,6 +216,13 @@ SIMPLE_JWT = {
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
+
+if _TESTING:
+    # Tests hash a lot of throwaway secrets (passwords, 2FA recovery codes).
+    # PBKDF2 is deliberately slow, which is right in production and pure waste
+    # here — this keeps the suite from spending most of its time stretching
+    # keys nobody will ever attack.
+    PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
 
 AUTH_PASSWORD_VALIDATORS = [
     {

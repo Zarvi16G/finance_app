@@ -14,6 +14,8 @@ from .views import (
     FinancialAnalyticsView, DebtViewSet, FinancialSnapshotViewSet,
     ChoiceView,
     RegisterView, LoginView, LogoutView, MeView,
+    TwoFactorLoginVerifyView, TwoFactorStatusView, TwoFactorSetupView,
+    TwoFactorEnableView, TwoFactorDisableView, TwoFactorBackupCodesView,
 )
 
 router = DefaultRouter()
@@ -32,6 +34,14 @@ urlpatterns = [
     path('auth/verify/', TokenVerifyView.as_view(), name='auth-verify'),
     path('auth/logout/', LogoutView.as_view(), name='auth-logout'),
     path('auth/me/', MeView.as_view(), name='auth-me'),
+    # Second step of login when the account has 2FA enabled
+    path('auth/2fa/verify/', TwoFactorLoginVerifyView.as_view(), name='auth-2fa-verify'),
+    # Second-factor management (from the profile screen)
+    path('profile/2fa/', TwoFactorStatusView.as_view(), name='profile-2fa'),
+    path('profile/2fa/setup/', TwoFactorSetupView.as_view(), name='profile-2fa-setup'),
+    path('profile/2fa/enable/', TwoFactorEnableView.as_view(), name='profile-2fa-enable'),
+    path('profile/2fa/disable/', TwoFactorDisableView.as_view(), name='profile-2fa-disable'),
+    path('profile/2fa/backup-codes/', TwoFactorBackupCodesView.as_view(), name='profile-2fa-backup-codes'),
     path('export/csv/', ExportCSVView.as_view(), name='export-csv'),
     path('export/pdf/', ExportPDFView.as_view(), name='export-pdf'),
     path('analysis/', AIAnalysisView.as_view(), name='ai-analysis'),

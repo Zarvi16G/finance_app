@@ -15,7 +15,11 @@ from .profile import ProfileSettingsView
 from .analytics import FinancialAnalyticsView
 from .debts import DebtViewSet
 from .snapshots import FinancialSnapshotViewSet
-from .auth import RegisterView, LoginView, LogoutView, MeView
+from .auth import RegisterView, LoginView, LogoutView, MeView, TwoFactorLoginVerifyView
+from .two_factor import (
+    TwoFactorStatusView, TwoFactorSetupView, TwoFactorEnableView,
+    TwoFactorDisableView, TwoFactorBackupCodesView,
+)
 
 __all__ = [
     'FinancialRecordViewSet',
@@ -40,4 +44,10 @@ __all__ = [
     'LoginView',
     'LogoutView',
     'MeView',
+    'TwoFactorLoginVerifyView',
+    'TwoFactorStatusView',
+    'TwoFactorSetupView',
+    'TwoFactorEnableView',
+    'TwoFactorDisableView',
+    'TwoFactorBackupCodesView',
 ]

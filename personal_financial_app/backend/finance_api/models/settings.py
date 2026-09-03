@@ -10,6 +10,11 @@ class UserSetting(models.Model):
         ('anthropic', 'Anthropic'),
     ]
 
+    TWO_FACTOR_METHODS = [
+        ('totp', 'Authenticator app'),
+        ('sms', 'SMS'),
+    ]
+
     # One settings row per user. This used to be a single global row (pk=1),
     # which meant every account shared the same currency and the same
     # encrypted AI API keys.
@@ -36,6 +41,33 @@ class UserSetting(models.Model):
         help_text="Model name override; defaults to the provider's default model when empty",
     )
     ai_keys = models.JSONField(default=dict, blank=True)
+
+    # --- Contact details -------------------------------------------------
+    # Names live on the Django user (User.first_name / User.last_name) and are
+    # deliberately not duplicated here. The phone is only used for the SMS
+    # second factor, which is not implemented yet.
+    phone_number = models.CharField(
+        max_length=20, blank=True, default='',
+        help_text="E.164 format, e.g. +573001234567",
+    )
+    phone_verified = models.BooleanField(default=False)
+
+    # --- Two-factor authentication ---------------------------------------
+    # The TOTP secret is Fernet-encrypted at rest with the same helper that
+    # protects the AI keys (see crypto.py), and is never returned by the API.
+    two_factor_enabled = models.BooleanField(default=False)
+    two_factor_method = models.CharField(
+        max_length=10, choices=TWO_FACTOR_METHODS, blank=True, default='',
+    )
+    totp_secret = models.CharField(max_length=255, blank=True, default='')
+    # Time step of the last accepted code. A TOTP code stays valid for its
+    # whole window, so remembering the last one blocks replay within it.
+    totp_last_step = models.BigIntegerField(null=True, blank=True)
+    # One-time recovery codes, stored hashed exactly like passwords.
+    backup_codes = models.JSONField(default=list, blank=True)
+    # Placeholder for the SMS factor: the data model is ready, the delivery
+    # provider is not wired up (no free unlimited SMS provider exists).
+    sms_enabled = models.BooleanField(default=False)
 
     updated_at = models.DateTimeField(auto_now=True)
 

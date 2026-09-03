@@ -1,7 +1,9 @@
+import time
 from datetime import date, timedelta
 from decimal import Decimal
 from unittest import mock
 
+import pyotp
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
@@ -486,6 +488,283 @@ class KeyValidationEngineTests(TestCase):
             verdict = key_validation.validate_api_key('anthropic', 'ant-key')
             self.assertFalse(verdict['valid'])
             self.assertEqual(verdict['code'], key_validation.CODE_NETWORK)
+
+
+class TwoFactorTests(AuthTestCase):
+    """Enrollment, step-up login, replay protection and recovery codes."""
+
+    def setUp(self):
+        super().setUp()
+        self.setting, _ = UserSetting.objects.get_or_create(owner=self.user)
+
+    def _enroll(self):
+        """Run the full enrollment flow; returns (secret, backup_codes)."""
+        setup = self.client.post('/api/profile/2fa/setup/')
+        self.assertEqual(setup.status_code, 200)
+        secret = setup.json()['secret']
+
+        enable = self.client.post(
+            '/api/profile/2fa/enable/', {'code': pyotp.TOTP(secret).now()}, format='json'
+        )
+        self.assertEqual(enable.status_code, 200)
+        return secret, enable.json()['backup_codes']
+
+    @staticmethod
+    def _next_code(secret):
+        """A code from the following time step.
+
+        The code that completed enrollment is spent, so signing in during that
+        same 30-second window has to use the next one — which the server still
+        accepts thanks to its one-step tolerance.
+        """
+        totp = pyotp.TOTP(secret)
+        return totp.at(time.time() + totp.interval)
+
+    # --- Enrollment ------------------------------------------------------
+
+    def test_setup_returns_secret_uri_and_qr_without_enabling(self):
+        response = self.client.post('/api/profile/2fa/setup/')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn('secret', data)
+        self.assertTrue(data['otpauth_uri'].startswith('otpauth://totp/'))
+        self.assertTrue(data['qr_code'].startswith('data:image/png;base64,'))
+
+        # Scanning the QR is not enough: 2FA stays off until a code is proven.
+        self.setting.refresh_from_db()
+        self.assertFalse(self.setting.two_factor_enabled)
+
+    def test_enable_requires_a_valid_code(self):
+        self.client.post('/api/profile/2fa/setup/')
+        response = self.client.post('/api/profile/2fa/enable/', {'code': '000000'}, format='json')
+        self.assertEqual(response.status_code, 400)
+        self.setting.refresh_from_db()
+        self.assertFalse(self.setting.two_factor_enabled)
+
+    def test_enable_returns_backup_codes_and_turns_2fa_on(self):
+        _, codes = self._enroll()
+        self.assertEqual(len(codes), 10)
+        self.setting.refresh_from_db()
+        self.assertTrue(self.setting.two_factor_enabled)
+        self.assertEqual(self.setting.two_factor_method, 'totp')
+
+    def test_secret_is_encrypted_at_rest_and_never_returned_again(self):
+        secret, _ = self._enroll()
+        self.setting.refresh_from_db()
+        self.assertNotIn(secret, self.setting.totp_secret)
+        self.assertEqual(decrypt_text(self.setting.totp_secret), secret)
+
+        status_body = self.client.get('/api/profile/2fa/').content.decode()
+        self.assertNotIn(secret, status_body)
+        profile_body = self.client.get('/api/profile/').content.decode()
+        self.assertNotIn(secret, profile_body)
+
+    def test_backup_codes_are_hashed_at_rest(self):
+        _, codes = self._enroll()
+        self.setting.refresh_from_db()
+        self.assertNotIn(codes[0], str(self.setting.backup_codes))
+
+    # --- Step-up login ---------------------------------------------------
+
+    def test_login_with_2fa_withholds_tokens(self):
+        self._enroll()
+        response = self.anonymous.post(
+            '/api/auth/login/',
+            {'username': self.username, 'password': self.password},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertTrue(body['mfa_required'])
+        self.assertIn('mfa_token', body)
+        # The password alone must not hand out API credentials.
+        self.assertNotIn('access', body)
+        self.assertNotIn('refresh', body)
+
+    def test_mfa_token_is_not_usable_as_an_access_token(self):
+        self._enroll()
+        login = self.anonymous.post(
+            '/api/auth/login/',
+            {'username': self.username, 'password': self.password},
+            format='json',
+        ).json()
+
+        impostor = APIClient()
+        impostor.credentials(HTTP_AUTHORIZATION=f"Bearer {login['mfa_token']}")
+        self.assertEqual(impostor.get('/api/records/').status_code, 401)
+
+    def test_verify_completes_the_login(self):
+        secret, _ = self._enroll()
+        login = self.anonymous.post(
+            '/api/auth/login/',
+            {'username': self.username, 'password': self.password},
+            format='json',
+        ).json()
+
+        response = self.anonymous.post(
+            '/api/auth/2fa/verify/',
+            {'mfa_token': login['mfa_token'], 'code': self._next_code(secret)},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertIn('access', body)
+        self.assertEqual(body['user']['username'], self.username)
+
+        # And the issued token really works
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {body['access']}")
+        self.assertEqual(client.get('/api/auth/me/').status_code, 200)
+
+    def test_verify_rejects_a_wrong_code(self):
+        self._enroll()
+        login = self.anonymous.post(
+            '/api/auth/login/',
+            {'username': self.username, 'password': self.password},
+            format='json',
+        ).json()
+        response = self.anonymous.post(
+            '/api/auth/2fa/verify/',
+            {'mfa_token': login['mfa_token'], 'code': '000000'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 401)
+
+    def test_verify_rejects_a_forged_token(self):
+        self._enroll()
+        response = self.anonymous.post(
+            '/api/auth/2fa/verify/',
+            {'mfa_token': 'not-a-signed-token', 'code': '123456'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json()['error_code'], 'mfa_token_invalid')
+
+    def test_login_without_2fa_is_unchanged(self):
+        response = self.anonymous.post(
+            '/api/auth/login/',
+            {'username': self.username, 'password': self.password},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('access', response.json())
+
+    # --- Replay and recovery ---------------------------------------------
+
+    def test_the_same_code_cannot_be_used_twice(self):
+        secret, _ = self._enroll()
+        code = self._next_code(secret)
+
+        def attempt():
+            login = self.anonymous.post(
+                '/api/auth/login/',
+                {'username': self.username, 'password': self.password},
+                format='json',
+            ).json()
+            return self.anonymous.post(
+                '/api/auth/2fa/verify/',
+                {'mfa_token': login['mfa_token'], 'code': code},
+                format='json',
+            )
+
+        self.assertEqual(attempt().status_code, 200)
+        # Same code, still inside its 30-second window: must be refused.
+        self.assertEqual(attempt().status_code, 401)
+
+    def test_backup_code_works_once(self):
+        _, codes = self._enroll()
+
+        def attempt(code):
+            login = self.anonymous.post(
+                '/api/auth/login/',
+                {'username': self.username, 'password': self.password},
+                format='json',
+            ).json()
+            return self.anonymous.post(
+                '/api/auth/2fa/verify/',
+                {'mfa_token': login['mfa_token'], 'code': code},
+                format='json',
+            )
+
+        self.assertEqual(attempt(codes[0]).status_code, 200)
+        self.assertEqual(attempt(codes[0]).status_code, 401)
+        # A different one still works
+        self.assertEqual(attempt(codes[1]).status_code, 200)
+
+        self.setting.refresh_from_db()
+        self.assertEqual(len(self.setting.backup_codes), 8)
+
+    def test_regenerating_backup_codes_invalidates_the_old_ones(self):
+        _, old_codes = self._enroll()
+        response = self.client.post(
+            '/api/profile/2fa/backup-codes/', {'password': self.password}, format='json'
+        )
+        self.assertEqual(response.status_code, 200)
+        new_codes = response.json()['backup_codes']
+        self.assertEqual(len(new_codes), 10)
+        self.assertNotEqual(set(old_codes), set(new_codes))
+
+    # --- Disabling -------------------------------------------------------
+
+    def test_disable_requires_the_password(self):
+        self._enroll()
+        response = self.client.post(
+            '/api/profile/2fa/disable/', {'password': 'wrong-password'}, format='json'
+        )
+        self.assertEqual(response.status_code, 403)
+        self.setting.refresh_from_db()
+        self.assertTrue(self.setting.two_factor_enabled)
+
+    def test_disable_clears_the_secret(self):
+        self._enroll()
+        response = self.client.post(
+            '/api/profile/2fa/disable/', {'password': self.password}, format='json'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.setting.refresh_from_db()
+        self.assertFalse(self.setting.two_factor_enabled)
+        self.assertEqual(self.setting.totp_secret, '')
+        self.assertEqual(self.setting.backup_codes, [])
+
+    def test_2fa_endpoints_require_authentication(self):
+        for path in ('/api/profile/2fa/', '/api/profile/2fa/setup/', '/api/profile/2fa/enable/'):
+            with self.subTest(path=path):
+                method = self.anonymous.get if path.endswith('/2fa/') else self.anonymous.post
+                self.assertEqual(method(path).status_code, 401)
+
+
+class ProfileDetailsTests(AuthTestCase):
+    """Name, email and phone on the profile endpoint."""
+
+    def test_put_updates_identity_fields(self):
+        response = self.client.put('/api/profile/', {
+            'first_name': 'Ada', 'last_name': 'Lovelace',
+            'phone_number': '+573001234567', 'currency': 'COP',
+        }, format='json')
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body['first_name'], 'Ada')
+        self.assertEqual(body['last_name'], 'Lovelace')
+        self.assertEqual(body['phone_number'], '+573001234567')
+        self.assertEqual(body['currency'], 'COP')
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.first_name, 'Ada')
+
+    def test_changing_the_phone_clears_its_verified_flag(self):
+        setting, _ = UserSetting.objects.get_or_create(owner=self.user)
+        setting.phone_number = '+573001111111'
+        setting.phone_verified = True
+        setting.save()
+
+        self.client.put('/api/profile/', {'phone_number': '+573002222222'}, format='json')
+        setting.refresh_from_db()
+        self.assertFalse(setting.phone_verified)
+
+    def test_profile_reports_two_factor_status(self):
+        response = self.client.get('/api/profile/')
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()['two_factor']['enabled'])
 
 
 class MultiTenancyIsolationTests(AuthTestCase):
