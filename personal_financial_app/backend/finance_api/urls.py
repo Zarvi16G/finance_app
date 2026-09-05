@@ -18,6 +18,7 @@ from .views import (
     TwoFactorEnableView, TwoFactorDisableView, TwoFactorBackupCodesView,
     CurrencyListView, CurrencyConvertView,
     AssetViewSet, PatrimonyView, WealthnessView,
+    ExperienceBudgetItemViewSet, LifeExperiencesView,
 )
 
 router = DefaultRouter()
@@ -28,6 +29,7 @@ router.register(r'debts', DebtViewSet, basename='debt')
 router.register(r'snapshots', FinancialSnapshotViewSet, basename='financial-snapshot')
 router.register(r'extracted', ExtractedTransactionViewSet, basename='extracted-transaction')
 router.register(r'assets', AssetViewSet, basename='asset')
+router.register(r'experience-budget', ExperienceBudgetItemViewSet, basename='experience-budget')
 
 urlpatterns = [
     # Authentication (JWT session management)
@@ -64,6 +66,7 @@ urlpatterns = [
     path('currencies/convert/', CurrencyConvertView.as_view(), name='currencies-convert'),
     path('patrimony/', PatrimonyView.as_view(), name='patrimony'),
     path('wealthness/', WealthnessView.as_view(), name='wealthness'),
+    path('life-experiences/', LifeExperiencesView.as_view(), name='life-experiences'),
     path('extracted-transactions/',
          BankStatementViewSet.as_view({'get': 'extracted_transactions'}),
          name='extracted-transactions'),

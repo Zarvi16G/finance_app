@@ -19,6 +19,7 @@ from .auth import RegisterView, LoginView, LogoutView, MeView, TwoFactorLoginVer
 from .currency import CurrencyListView, CurrencyConvertView
 from .patrimony import AssetViewSet, PatrimonyView
 from .wealthness import WealthnessView
+from .experiences import ExperienceBudgetItemViewSet, LifeExperiencesView
 from .two_factor import (
     TwoFactorStatusView, TwoFactorSetupView, TwoFactorEnableView,
     TwoFactorDisableView, TwoFactorBackupCodesView,
@@ -58,4 +59,6 @@ __all__ = [
     'AssetViewSet',
     'PatrimonyView',
     'WealthnessView',
+    'ExperienceBudgetItemViewSet',
+    'LifeExperiencesView',
 ]

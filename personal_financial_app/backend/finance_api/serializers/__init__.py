@@ -10,6 +10,7 @@ from .debts import DebtSerializer
 from .snapshots import FinancialSnapshotSerializer
 from .auth import RegisterSerializer
 from .patrimony import AssetSerializer
+from .experiences import ExperienceBudgetItemSerializer
 
 __all__ = [
     'FinancialRecordSerializer',
@@ -21,4 +22,5 @@ __all__ = [
     'FinancialSnapshotSerializer',
     'RegisterSerializer',
     'AssetSerializer',
+    'ExperienceBudgetItemSerializer',
 ]

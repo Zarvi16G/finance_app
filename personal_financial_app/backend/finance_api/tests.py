@@ -13,6 +13,7 @@ from rest_framework.test import APIClient
 from .models import (
     FinancialRecord, UserSetting, BankStatement, ExpectedGoal,
     ExtractedTransaction, Debt, Currency, ExchangeRate, Asset,
+    ExperienceBudgetItem,
 )
 from .crypto import decrypt_text
 from .services import currency_service, wealthness_service
@@ -490,6 +491,136 @@ class KeyValidationEngineTests(TestCase):
             verdict = key_validation.validate_api_key('anthropic', 'ant-key')
             self.assertFalse(verdict['valid'])
             self.assertEqual(verdict['code'], key_validation.CODE_NETWORK)
+
+
+@override_settings(EXCHANGERATE_API_KEY='test-key-not-a-real-one')
+class LifeExperiencesTests(AuthTestCase):
+    """Trip budgets: itemised costs against what the user set out to save."""
+
+    def setUp(self):
+        super().setUp()
+        for code, name, decimals in (('COP', 'Colombian Peso', 0), ('USD', 'US Dollar', 2)):
+            Currency.objects.update_or_create(
+                code=code, defaults={'name': name, 'decimals': decimals}
+            )
+        ExchangeRate.objects.create(
+            base='USD', target='COP', rate=Decimal('4000'), rate_date=date.today()
+        )
+
+        self.trip = ExpectedGoal.objects.create(
+            owner=self.user, title='Japón 2027', goal_type='experience',
+            location='Tokio', target_amount=Decimal('20000000'),
+            current_amount=Decimal('5000000'), currency='COP',
+            start_date=date.today(), end_date=date.today() + timedelta(days=400),
+        )
+        # A trip legitimately mixes currencies: the flight is priced in USD.
+        self.flight = ExperienceBudgetItem.objects.create(
+            goal=self.trip, label='Vuelos', category='transport',
+            estimated_amount=Decimal('1500'), currency='USD', is_booked=True,
+        )
+        self.hotel = ExperienceBudgetItem.objects.create(
+            goal=self.trip, label='Hotel', category='lodging',
+            estimated_amount=Decimal('8000000'), currency='COP',
+        )
+
+    def test_budget_totals_convert_every_line(self):
+        body = self.client.get('/api/life-experiences/').json()
+        budget = body['experiences'][0]['budget']
+        # 1500 USD * 4000 = 6M, plus 8M hotel = 14M COP
+        self.assertEqual(budget['estimated_total'], 14000000.0)
+        self.assertEqual(budget['booked_total'], 6000000.0)
+
+    def test_target_and_budget_are_reported_separately(self):
+        """The user owns the target; the line items are a separate opinion."""
+        budget = self.client.get('/api/life-experiences/').json()['experiences'][0]['budget']
+        self.assertEqual(budget['target_amount'], 20000000.0)
+        self.assertEqual(budget['estimated_total'], 14000000.0)
+        # Negative: the itemised plan costs less than the target set aside.
+        self.assertEqual(budget['budget_vs_target'], -6000000.0)
+
+    def test_saving_progress_and_remainder(self):
+        budget = self.client.get('/api/life-experiences/').json()['experiences'][0]['budget']
+        self.assertEqual(budget['saved_amount'], 5000000.0)
+        self.assertEqual(budget['still_to_save'], 15000000.0)
+        self.assertEqual(budget['progress_percentage'], 25.0)
+
+    def test_category_breakdown_shares_add_up(self):
+        by_category = self.client.get(
+            '/api/life-experiences/'
+        ).json()['experiences'][0]['budget']['by_category']
+        shares = {row['category']: row['percentage'] for row in by_category}
+        self.assertAlmostEqual(shares['lodging'], 57.14, places=1)
+        self.assertAlmostEqual(shares['transport'], 42.86, places=1)
+        self.assertAlmostEqual(sum(shares.values()), 100.0, places=1)
+
+    def test_variance_appears_once_money_is_actually_spent(self):
+        self.hotel.actual_amount = Decimal('8500000')
+        self.hotel.save()
+        items = self.client.get(f'/api/experience-budget/?goal={self.trip.id}').json()
+        hotel = next(i for i in items if i['label'] == 'Hotel')
+        self.assertEqual(hotel['variance'], 500000.0)
+        flight = next(i for i in items if i['label'] == 'Vuelos')
+        self.assertIsNone(flight['variance'])
+
+    def test_only_experience_goals_are_listed(self):
+        ExpectedGoal.objects.create(
+            owner=self.user, title='Fondo de emergencia', goal_type='emergency_fund',
+            target_amount=Decimal('10000000'), current_amount=Decimal('0'),
+            currency='COP', start_date=date.today(),
+            end_date=date.today() + timedelta(days=200),
+        )
+        body = self.client.get('/api/life-experiences/').json()
+        self.assertEqual(body['count'], 1)
+        self.assertEqual(body['experiences'][0]['title'], 'Japón 2027')
+
+    def test_goals_default_to_savings(self):
+        response = self.client.post('/api/goals/', {
+            'title': 'Ahorro', 'target_amount': 1000, 'current_amount': 0,
+            'start_date': date.today().isoformat(),
+            'end_date': (date.today() + timedelta(days=30)).isoformat(),
+        }, format='json')
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()['goal_type'], 'savings')
+
+    # --- Isolation -------------------------------------------------------
+
+    def test_budget_items_are_isolated_between_users(self):
+        other_client, _, _ = self.register('trip-intruder')
+        self.assertEqual(other_client.get('/api/experience-budget/').json(), [])
+        self.assertEqual(
+            other_client.get(f'/api/experience-budget/{self.flight.id}/').status_code, 404
+        )
+        self.assertEqual(other_client.get('/api/life-experiences/').json()['count'], 0)
+
+    def test_a_line_cannot_be_attached_to_someone_elses_trip(self):
+        """The security hinge of this feature: `goal` decides the owner."""
+        other_client, _, _ = self.register('trip-intruder')
+        response = other_client.post('/api/experience-budget/', {
+            'goal': self.trip.id, 'label': 'Colado', 'category': 'other',
+            'estimated_amount': '1000',
+        }, format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('goal', response.json())
+        self.assertEqual(self.trip.budget_items.count(), 2)
+
+    def test_budget_lines_inherit_the_base_currency(self):
+        response = self.client.post('/api/experience-budget/', {
+            'goal': self.trip.id, 'label': 'Comida', 'category': 'food',
+            'estimated_amount': '2000000',
+        }, format='json')
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()['currency'], 'COP')
+
+    def test_negative_lines_are_rejected(self):
+        response = self.client.post('/api/experience-budget/', {
+            'goal': self.trip.id, 'label': 'Descuento', 'category': 'other',
+            'estimated_amount': '-500',
+        }, format='json')
+        self.assertEqual(response.status_code, 400)
+
+    def test_deleting_a_trip_removes_its_budget(self):
+        self.client.delete(f'/api/goals/{self.trip.id}/')
+        self.assertEqual(ExperienceBudgetItem.objects.count(), 0)
 
 
 class WealthnessServiceTests(TestCase):

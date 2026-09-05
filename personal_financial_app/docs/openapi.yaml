@@ -1397,6 +1397,189 @@ paths:
               schema:
                 $ref: '#/components/schemas/Debt'
           description: ''
+  /api/experience-budget/:
+    get:
+      operationId: experience_budget_list
+      description: |-
+        CRUD for the lines of an experience budget.
+
+        A line has no owner column of its own — it inherits one from the goal it
+        hangs off. The serializer restricts which goals may be referenced, so a
+        line can never be attached to another user's trip.
+      parameters:
+      - in: query
+        name: goal
+        schema:
+          type: integer
+        description: Filter to one experience goal.
+      tags:
+      - experience-budget
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExperienceBudgetItem'
+          description: ''
+    post:
+      operationId: experience_budget_create
+      description: |-
+        CRUD for the lines of an experience budget.
+
+        A line has no owner column of its own — it inherits one from the goal it
+        hangs off. The serializer restricts which goals may be referenced, so a
+        line can never be attached to another user's trip.
+      tags:
+      - experience-budget
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExperienceBudgetItemRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ExperienceBudgetItemRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ExperienceBudgetItemRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExperienceBudgetItem'
+          description: ''
+  /api/experience-budget/{id}/:
+    get:
+      operationId: experience_budget_retrieve
+      description: |-
+        CRUD for the lines of an experience budget.
+
+        A line has no owner column of its own — it inherits one from the goal it
+        hangs off. The serializer restricts which goals may be referenced, so a
+        line can never be attached to another user's trip.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this experience budget item.
+        required: true
+      tags:
+      - experience-budget
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExperienceBudgetItem'
+          description: ''
+    put:
+      operationId: experience_budget_update
+      description: |-
+        CRUD for the lines of an experience budget.
+
+        A line has no owner column of its own — it inherits one from the goal it
+        hangs off. The serializer restricts which goals may be referenced, so a
+        line can never be attached to another user's trip.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this experience budget item.
+        required: true
+      tags:
+      - experience-budget
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExperienceBudgetItemRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ExperienceBudgetItemRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ExperienceBudgetItemRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExperienceBudgetItem'
+          description: ''
+    patch:
+      operationId: experience_budget_partial_update
+      description: |-
+        CRUD for the lines of an experience budget.
+
+        A line has no owner column of its own — it inherits one from the goal it
+        hangs off. The serializer restricts which goals may be referenced, so a
+        line can never be attached to another user's trip.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this experience budget item.
+        required: true
+      tags:
+      - experience-budget
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedExperienceBudgetItemRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedExperienceBudgetItemRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedExperienceBudgetItemRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExperienceBudgetItem'
+          description: ''
+    delete:
+      operationId: experience_budget_destroy
+      description: |-
+        CRUD for the lines of an experience budget.
+
+        A line has no owner column of its own — it inherits one from the goal it
+        hangs off. The serializer restricts which goals may be referenced, so a
+        line can never be attached to another user's trip.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this experience budget item.
+        required: true
+      tags:
+      - experience-budget
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/export/csv/:
     get:
       operationId: export_csv_retrieve
@@ -1824,6 +2007,24 @@ paths:
         per category plus overall summary.'
       tags:
       - goals
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/life-experiences/:
+    get:
+      operationId: life_experiences_retrieve
+      description: Every life-experience goal with its itemised budget, category breakdown,
+        saving progress, and how the plan compares with the target. All amounts in
+        the caller's base currency.
+      tags:
+      - life-experiences
       security:
       - jwtAuth: []
       responses:
@@ -2836,6 +3037,26 @@ components:
         * `review_pending` - Review Pending
         * `completed` - Completed
         * `failed` - Failed
+    CategoryEnum:
+      enum:
+      - transport
+      - lodging
+      - food
+      - activities
+      - insurance
+      - shopping
+      - buffer
+      - other
+      type: string
+      description: |-
+        * `transport` - Transport
+        * `lodging` - Lodging
+        * `food` - Food
+        * `activities` - Activities
+        * `insurance` - Insurance & Visas
+        * `shopping` - Shopping
+        * `buffer` - Buffer
+        * `other` - Other
     Debt:
       type: object
       description: Serializer for user debts.
@@ -3044,6 +3265,27 @@ components:
           type: string
           description: Name of the financial goal
           maxLength: 100
+        goal_type:
+          allOf:
+          - $ref: '#/components/schemas/GoalTypeEnum'
+          description: |-
+            Experience goals can carry an itemised budget
+
+            * `savings` - Savings
+            * `experience` - Life Experience
+            * `emergency_fund` - Emergency Fund
+            * `debt_payoff` - Debt Payoff
+            * `purchase` - Purchase
+            * `other` - Other
+        experience_date:
+          type: string
+          format: date
+          nullable: true
+          description: When the experience takes place, if it has a fixed date
+        location:
+          type: string
+          description: Where the experience takes place
+          maxLength: 120
         target_amount:
           type: string
           format: decimal
@@ -3113,6 +3355,27 @@ components:
           minLength: 1
           description: Name of the financial goal
           maxLength: 100
+        goal_type:
+          allOf:
+          - $ref: '#/components/schemas/GoalTypeEnum'
+          description: |-
+            Experience goals can carry an itemised budget
+
+            * `savings` - Savings
+            * `experience` - Life Experience
+            * `emergency_fund` - Emergency Fund
+            * `debt_payoff` - Debt Payoff
+            * `purchase` - Purchase
+            * `other` - Other
+        experience_date:
+          type: string
+          format: date
+          nullable: true
+          description: When the experience takes place, if it has a fixed date
+        location:
+          type: string
+          description: Where the experience takes place
+          maxLength: 120
         target_amount:
           type: string
           format: decimal
@@ -3172,6 +3435,110 @@ components:
         * `ongoing` - Ongoing
         * `achieved` - Achieved
         * `failed` - Failed
+    ExperienceBudgetItem:
+      type: object
+      description: |-
+        A single budget line.
+
+        `goal` is the security-sensitive field here: it is what ties the line to
+        an owner. Its queryset is narrowed to the requesting user's own goals, so
+        a crafted payload cannot attach a line to somebody else's trip — DRF
+        answers 400 "object does not exist" for any other id, exactly as it does
+        for one that never existed.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        goal:
+          type: integer
+        label:
+          type: string
+          maxLength: 120
+        category:
+          $ref: '#/components/schemas/CategoryEnum'
+        category_display:
+          type: string
+          readOnly: true
+        estimated_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        actual_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          nullable: true
+          description: Filled in once the money is actually spent
+        variance:
+          type: string
+          readOnly: true
+        currency:
+          type: string
+          maxLength: 3
+        is_booked:
+          type: boolean
+          description: Already paid or reserved, so the price will not move
+        notes:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - category_display
+      - created_at
+      - goal
+      - id
+      - label
+      - updated_at
+      - variance
+    ExperienceBudgetItemRequest:
+      type: object
+      description: |-
+        A single budget line.
+
+        `goal` is the security-sensitive field here: it is what ties the line to
+        an owner. Its queryset is narrowed to the requesting user's own goals, so
+        a crafted payload cannot attach a line to somebody else's trip — DRF
+        answers 400 "object does not exist" for any other id, exactly as it does
+        for one that never existed.
+      properties:
+        goal:
+          type: integer
+        label:
+          type: string
+          minLength: 1
+          maxLength: 120
+        category:
+          $ref: '#/components/schemas/CategoryEnum'
+        estimated_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        actual_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          nullable: true
+          description: Filled in once the money is actually spent
+        currency:
+          type: string
+          minLength: 1
+          maxLength: 3
+        is_booked:
+          type: boolean
+          description: Already paid or reserved, so the price will not move
+        notes:
+          type: string
+          nullable: true
+      required:
+      - goal
+      - label
     ExtractedTransaction:
       type: object
       description: Serializer for extracted transactions from bank statements.
@@ -3608,6 +3975,22 @@ components:
           description: Months of essential spending the liquid assets would cover
       required:
       - date
+    GoalTypeEnum:
+      enum:
+      - savings
+      - experience
+      - emergency_fund
+      - debt_payoff
+      - purchase
+      - other
+      type: string
+      description: |-
+        * `savings` - Savings
+        * `experience` - Life Experience
+        * `emergency_fund` - Emergency Fund
+        * `debt_payoff` - Debt Payoff
+        * `purchase` - Purchase
+        * `other` - Other
     PatchedAssetRequest:
       type: object
       description: Serializer for owned assets.
@@ -3750,6 +4133,27 @@ components:
           minLength: 1
           description: Name of the financial goal
           maxLength: 100
+        goal_type:
+          allOf:
+          - $ref: '#/components/schemas/GoalTypeEnum'
+          description: |-
+            Experience goals can carry an itemised budget
+
+            * `savings` - Savings
+            * `experience` - Life Experience
+            * `emergency_fund` - Emergency Fund
+            * `debt_payoff` - Debt Payoff
+            * `purchase` - Purchase
+            * `other` - Other
+        experience_date:
+          type: string
+          format: date
+          nullable: true
+          description: When the experience takes place, if it has a fixed date
+        location:
+          type: string
+          description: Where the experience takes place
+          maxLength: 120
         target_amount:
           type: string
           format: decimal
@@ -3792,6 +4196,45 @@ components:
           type: string
           nullable: true
           description: Detailed context or strategy for this goal
+    PatchedExperienceBudgetItemRequest:
+      type: object
+      description: |-
+        A single budget line.
+
+        `goal` is the security-sensitive field here: it is what ties the line to
+        an owner. Its queryset is narrowed to the requesting user's own goals, so
+        a crafted payload cannot attach a line to somebody else's trip — DRF
+        answers 400 "object does not exist" for any other id, exactly as it does
+        for one that never existed.
+      properties:
+        goal:
+          type: integer
+        label:
+          type: string
+          minLength: 1
+          maxLength: 120
+        category:
+          $ref: '#/components/schemas/CategoryEnum'
+        estimated_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        actual_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          nullable: true
+          description: Filled in once the money is actually spent
+        currency:
+          type: string
+          minLength: 1
+          maxLength: 3
+        is_booked:
+          type: boolean
+          description: Already paid or reserved, so the price will not move
+        notes:
+          type: string
+          nullable: true
     PatchedExtractedTransactionRequest:
       type: object
       description: Serializer for extracted transactions from bank statements.

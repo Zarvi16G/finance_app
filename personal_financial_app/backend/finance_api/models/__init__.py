@@ -11,11 +11,13 @@ from .snapshots import FinancialSnapshot
 from .settings import UserSetting, CustomType, CustomCategory, Choice
 from .currency import Currency, ExchangeRate
 from .patrimony import Asset
+from .experiences import ExperienceBudgetItem
 
 __all__ = [
     'Currency',
     'ExchangeRate',
     'Asset',
+    'ExperienceBudgetItem',
     'FinancialRecord',
     'ExpectedGoal',
     'BankStatement',

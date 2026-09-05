@@ -19,6 +19,9 @@ class ExpectedGoalSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'title',
+            'goal_type',
+            'experience_date',
+            'location',
             'target_amount',
             'current_amount',
             'currency',
