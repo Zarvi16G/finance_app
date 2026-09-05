@@ -69,6 +69,12 @@ def compute_monthly_snapshot(date, user):
     total_assets = float(assets_total)
     total_liabilities = float(liabilities_total)
 
+    # Wealthness: how long the liquid assets would cover essential spending.
+    # Computed here so the metric can be charted month by month, not just for
+    # today. Deferred import — wealthness_service reads snapshots.
+    from .wealthness_service import emergency_fund
+    cover = emergency_fund(user, base, today=date)
+
     # Liquidity ratios
     current_ratio = (total_income / total_min_payment) if total_min_payment > 0 else None
     essential_expenses = float(currency_service.sum_in(
@@ -116,6 +122,8 @@ def compute_monthly_snapshot(date, user):
     snapshot.total_liabilities = total_liabilities
     snapshot.total_assets = total_assets
     snapshot.net_worth = float(net_worth)
+    snapshot.liquid_assets = cover['liquid_assets']
+    snapshot.emergency_fund_months = cover['months_covered']
     snapshot.save()
 
     return snapshot

@@ -2520,6 +2520,30 @@ paths:
               schema:
                 $ref: '#/components/schemas/BankStatement'
           description: ''
+  /api/wealthness/:
+    get:
+      operationId: wealthness_retrieve
+      description: 'Financial health: monthly net flow, the direction net worth is
+        moving, savings rate, emergency-fund cover and debt load. Each metric carries
+        a status from documented rules of thumb, not a single opaque score.'
+      parameters:
+      - in: query
+        name: months
+        schema:
+          type: integer
+        description: Length of the window, 2 to 60 months (default 12).
+      tags:
+      - wealthness
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
 components:
   schemas:
     AccountBankEnum:
@@ -3455,16 +3479,27 @@ components:
         total_liabilities:
           type: string
           format: decimal
-          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
         total_assets:
           type: string
           format: decimal
-          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
           nullable: true
         net_worth:
           type: string
           format: decimal
-          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+        liquid_assets:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+          description: Assets convertible to cash within days, at this month's close
+        emergency_fund_months:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+          description: Months of essential spending the liquid assets would cover
         created_at:
           type: string
           format: date-time
@@ -3550,16 +3585,27 @@ components:
         total_liabilities:
           type: string
           format: decimal
-          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
         total_assets:
           type: string
           format: decimal
-          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
           nullable: true
         net_worth:
           type: string
           format: decimal
-          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+        liquid_assets:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+          description: Assets convertible to cash within days, at this month's close
+        emergency_fund_months:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+          description: Months of essential spending the liquid assets would cover
       required:
       - date
     PatchedAssetRequest:

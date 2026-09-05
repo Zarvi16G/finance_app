@@ -41,9 +41,20 @@ class FinancialSnapshot(models.Model):
     expenses_per_category = models.JSONField(default=dict, blank=True)
 
     # Assets and liabilities
-    total_liabilities = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    total_assets = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
-    net_worth = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_liabilities = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    total_assets = models.DecimalField(max_digits=18, decimal_places=2, null=True, blank=True)
+    net_worth = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+
+    # Financial health (Wealthness). Stored per month so the metrics can be
+    # charted over time rather than only shown for today.
+    liquid_assets = models.DecimalField(
+        max_digits=18, decimal_places=2, default=0,
+        help_text="Assets convertible to cash within days, at this month's close",
+    )
+    emergency_fund_months = models.DecimalField(
+        max_digits=6, decimal_places=2, null=True, blank=True,
+        help_text="Months of essential spending the liquid assets would cover",
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
 

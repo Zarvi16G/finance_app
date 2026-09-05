@@ -15,7 +15,7 @@ from .models import (
     ExtractedTransaction, Debt, Currency, ExchangeRate, Asset,
 )
 from .crypto import decrypt_text
-from .services import currency_service
+from .services import currency_service, wealthness_service
 from .services.snapshot_service import compute_monthly_snapshot
 from .services.ai import key_validation
 from .services.statement_detection import detect_statement_info
@@ -490,6 +490,158 @@ class KeyValidationEngineTests(TestCase):
             verdict = key_validation.validate_api_key('anthropic', 'ant-key')
             self.assertFalse(verdict['valid'])
             self.assertEqual(verdict['code'], key_validation.CODE_NETWORK)
+
+
+class WealthnessServiceTests(TestCase):
+    """The metric bands and the trend rule, isolated from the API."""
+
+    def test_emergency_fund_bands(self):
+        cases = [
+            (Decimal('8'), 'strong'),
+            (Decimal('6'), 'strong'),
+            (Decimal('4'), 'adequate'),
+            (Decimal('3'), 'adequate'),
+            (Decimal('2'), 'low'),
+            (Decimal('0.5'), 'critical'),
+            (None, 'unknown'),
+        ]
+        for value, expected in cases:
+            with self.subTest(value=value):
+                self.assertEqual(
+                    wealthness_service._band(
+                        value, wealthness_service.EMERGENCY_FUND_BANDS
+                    )['status'],
+                    expected,
+                )
+
+    def test_debt_to_income_bands_treat_high_as_bad(self):
+        """Unlike the others, a bigger number here is worse."""
+        for value, expected in [(50, 'critical'), (40, 'high'), (20, 'healthy')]:
+            with self.subTest(value=value):
+                self.assertEqual(
+                    wealthness_service._band(
+                        value, wealthness_service.DEBT_TO_INCOME_BANDS
+                    )['status'],
+                    expected,
+                )
+
+    def _series(self, net_worths, nets=None):
+        nets = nets or [0] * len(net_worths)
+        return [
+            {'month': f'2026-{i + 1:02d}', 'income': 0, 'expenses': 0,
+             'net': nets[i], 'net_worth': value}
+            for i, value in enumerate(net_worths)
+        ]
+
+    def test_trend_needs_two_months(self):
+        self.assertEqual(wealthness_service.trend(self._series([100]))['direction'], 'unknown')
+
+    def test_trend_directions(self):
+        self.assertEqual(
+            wealthness_service.trend(self._series([100, 200]))['direction'], 'growing'
+        )
+        self.assertEqual(
+            wealthness_service.trend(self._series([200, 100]))['direction'], 'declining'
+        )
+
+    def test_small_moves_are_noise_not_a_direction(self):
+        # 1% either way stays inside the threshold.
+        result = wealthness_service.trend(self._series([100, 101]))
+        self.assertEqual(result['direction'], 'stable')
+        self.assertEqual(result['change_pct'], 1.0)
+
+    def test_trend_falls_back_to_net_flow_without_assets(self):
+        """Someone who tracks spending but owns nothing still gets an answer."""
+        result = wealthness_service.trend(self._series([0, 0, 0], nets=[10, 20, 30]))
+        self.assertEqual(result['basis'], 'net_flow')
+        self.assertEqual(result['direction'], 'growing')
+
+    def test_months_back_crosses_year_boundaries(self):
+        self.assertEqual(
+            wealthness_service._months_back(date(2026, 2, 15), 3), date(2025, 11, 1)
+        )
+
+
+@override_settings(EXCHANGERATE_API_KEY='test-key-not-a-real-one')
+class WealthnessApiTests(AuthTestCase):
+    """The /api/wealthness/ dashboard over real records."""
+
+    def setUp(self):
+        super().setUp()
+        Currency.objects.update_or_create(
+            code='COP', defaults={'name': 'Colombian Peso', 'decimals': 0}
+        )
+        self.today = date.today().replace(day=1)
+
+        # Six months of steady income and essential spending.
+        for offset in range(6):
+            month = wealthness_service._months_back(self.today, offset)
+            FinancialRecord.objects.create(
+                owner=self.user, type='income', category='Salary',
+                amount=Decimal('5000000'), currency='COP', date=month,
+            )
+            FinancialRecord.objects.create(
+                owner=self.user, type='expense', category='Rent & Housing',
+                amount=Decimal('2000000'), currency='COP', date=month,
+            )
+            compute_monthly_snapshot(month, self.user)
+
+    def test_returns_a_net_flow_series(self):
+        response = self.client.get('/api/wealthness/')
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body['base_currency'], 'COP')
+        self.assertEqual(len(body['net_flow']['series']), 6)
+        self.assertEqual(body['net_flow']['series'][-1]['net'], 3000000.0)
+
+    def test_savings_rate_is_measured_over_the_window(self):
+        body = self.client.get('/api/wealthness/').json()
+        # Kept 3M of every 5M earned
+        self.assertEqual(body['savings_rate']['value'], 60.0)
+        self.assertEqual(body['savings_rate']['status'], 'strong')
+
+    def test_emergency_fund_reports_unknown_without_liquid_assets(self):
+        body = self.client.get('/api/wealthness/').json()
+        self.assertEqual(body['emergency_fund']['liquid_assets'], 0.0)
+        self.assertEqual(body['emergency_fund']['months_covered'], 0.0)
+        self.assertEqual(body['emergency_fund']['status'], 'critical')
+
+    def test_emergency_fund_counts_only_liquid_assets(self):
+        Asset.objects.create(
+            owner=self.user, name='Ahorros', asset_type='savings',
+            current_value=Decimal('8000000'), currency='COP', is_liquid=True,
+        )
+        Asset.objects.create(
+            owner=self.user, name='Apartamento', asset_type='property',
+            current_value=Decimal('300000000'), currency='COP', is_liquid=False,
+        )
+        body = self.client.get('/api/wealthness/').json()
+        # 8M liquid / 2M monthly essentials = 4 months. The flat is not counted.
+        self.assertEqual(body['emergency_fund']['liquid_assets'], 8000000.0)
+        self.assertEqual(body['emergency_fund']['months_covered'], 4.0)
+        self.assertEqual(body['emergency_fund']['status'], 'adequate')
+
+    def test_window_is_clamped_to_a_sane_range(self):
+        for months in ('0', '-5', '9999', 'not-a-number'):
+            with self.subTest(months=months):
+                response = self.client.get(f'/api/wealthness/?months={months}')
+                self.assertEqual(response.status_code, 200)
+
+    def test_snapshot_stores_the_emergency_fund_metric(self):
+        Asset.objects.create(
+            owner=self.user, name='Ahorros', asset_type='savings',
+            current_value=Decimal('6000000'), currency='COP', is_liquid=True,
+        )
+        snapshot = compute_monthly_snapshot(self.today, self.user)
+        self.assertEqual(float(snapshot.liquid_assets), 6000000.0)
+        self.assertEqual(float(snapshot.emergency_fund_months), 3.0)
+
+    def test_wealthness_is_isolated_between_users(self):
+        other_client, _, _ = self.register('wealthness-intruder')
+        body = other_client.get('/api/wealthness/').json()
+        self.assertEqual(body['net_flow']['series'], [])
+        self.assertIsNone(body['savings_rate']['value'])
+        self.assertEqual(body['net_worth']['current'], 0.0)
 
 
 @override_settings(EXCHANGERATE_API_KEY='test-key-not-a-real-one')
