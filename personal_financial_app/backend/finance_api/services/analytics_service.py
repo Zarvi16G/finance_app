@@ -12,7 +12,7 @@ from django.db.models.functions import TruncMonth
 from django.utils import timezone
 
 from ..models import FinancialRecord, FinancialSnapshot, Debt
-from . import currency_service
+from . import currency_service, patrimony_service
 from .snapshot_service import base_currency_for
 
 ESSENTIAL_CATEGORIES = ['Rent & Housing', 'Utilities', 'Food & Dining', 'Healthcare', 'Transportation']
@@ -283,7 +283,11 @@ def calculate_financial_ratios(records, start_date, end_date, user, base):
 
     # Solvency
     debt_to_income = (total_min_payment / total_income * 100) if total_income > 0 else 0
-    debt_to_asset = None  # Would need asset tracking
+    # Now computable: the asset registry exists.
+    total_asset_value, _, _ = patrimony_service.net_worth_for(user, base)
+    debt_to_asset = (
+        float(total_debt / float(total_asset_value) * 100) if total_asset_value > 0 else None
+    )
 
     # Growth (YoY comparison)
     current_year = timezone.now().year

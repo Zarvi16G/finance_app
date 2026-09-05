@@ -198,6 +198,165 @@ paths:
                 type: object
                 additionalProperties: {}
           description: ''
+  /api/assets/:
+    get:
+      operationId: assets_list
+      description: |-
+        CRUD for the things a user owns: cash, investments, property, vehicles.
+        Debts are the other side of the ledger and live at /api/debts/.
+      tags:
+      - assets
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Asset'
+          description: ''
+    post:
+      operationId: assets_create
+      description: |-
+        CRUD for the things a user owns: cash, investments, property, vehicles.
+        Debts are the other side of the ledger and live at /api/debts/.
+      tags:
+      - assets
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssetRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AssetRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AssetRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asset'
+          description: ''
+  /api/assets/{id}/:
+    get:
+      operationId: assets_retrieve
+      description: |-
+        CRUD for the things a user owns: cash, investments, property, vehicles.
+        Debts are the other side of the ledger and live at /api/debts/.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this asset.
+        required: true
+      tags:
+      - assets
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asset'
+          description: ''
+    put:
+      operationId: assets_update
+      description: |-
+        CRUD for the things a user owns: cash, investments, property, vehicles.
+        Debts are the other side of the ledger and live at /api/debts/.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this asset.
+        required: true
+      tags:
+      - assets
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssetRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AssetRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AssetRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asset'
+          description: ''
+    patch:
+      operationId: assets_partial_update
+      description: |-
+        CRUD for the things a user owns: cash, investments, property, vehicles.
+        Debts are the other side of the ledger and live at /api/debts/.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this asset.
+        required: true
+      tags:
+      - assets
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAssetRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAssetRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAssetRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asset'
+          description: ''
+    delete:
+      operationId: assets_destroy
+      description: |-
+        CRUD for the things a user owns: cash, investments, property, vehicles.
+        Debts are the other side of the ledger and live at /api/debts/.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this asset.
+        required: true
+      tags:
+      - assets
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/auth/2fa/verify/:
     post:
       operationId: auth_2fa_verify_create
@@ -1675,6 +1834,23 @@ paths:
                 type: object
                 additionalProperties: {}
           description: ''
+  /api/patrimony/:
+    get:
+      operationId: patrimony_retrieve
+      description: 'Net worth and its parts: assets (split liquid vs illiquid), liabilities,
+        and both broken down by type. Every figure is in the caller''s base currency.'
+      tags:
+      - patrimony
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/profile/:
     get:
       operationId: profile_retrieve
@@ -2365,6 +2541,122 @@ components:
         * `cash` - Cash
         * `business_card` - Business Card
         * `bre_b` - Bre-B (Employee Special Card)
+        * `other` - Other
+    Asset:
+      type: object
+      description: Serializer for owned assets.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 120
+        asset_type:
+          $ref: '#/components/schemas/AssetTypeEnum'
+        asset_type_display:
+          type: string
+          readOnly: true
+        current_value:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+        currency:
+          type: string
+          description: ISO 4217 code the value above is expressed in
+          maxLength: 3
+        is_liquid:
+          type: boolean
+          description: Convertible to cash within days; drives the emergency-fund
+            metrics
+        valued_at:
+          type: string
+          format: date
+          nullable: true
+          description: When this valuation was taken — a stale one quietly distorts
+            net worth
+        acquired_date:
+          type: string
+          format: date
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - asset_type_display
+      - created_at
+      - current_value
+      - id
+      - name
+      - updated_at
+    AssetRequest:
+      type: object
+      description: Serializer for owned assets.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        asset_type:
+          $ref: '#/components/schemas/AssetTypeEnum'
+        current_value:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+        currency:
+          type: string
+          minLength: 1
+          description: ISO 4217 code the value above is expressed in
+          maxLength: 3
+        is_liquid:
+          type: boolean
+          description: Convertible to cash within days; drives the emergency-fund
+            metrics
+        valued_at:
+          type: string
+          format: date
+          nullable: true
+          description: When this valuation was taken — a stale one quietly distorts
+            net worth
+        acquired_date:
+          type: string
+          format: date
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required:
+      - current_value
+      - name
+    AssetTypeEnum:
+      enum:
+      - cash
+      - savings
+      - investment
+      - retirement
+      - property
+      - vehicle
+      - business
+      - receivable
+      - other
+      type: string
+      description: |-
+        * `cash` - Cash
+        * `savings` - Savings Account
+        * `investment` - Investment
+        * `retirement` - Retirement Fund
+        * `property` - Property
+        * `vehicle` - Vehicle
+        * `business` - Business Stake
+        * `receivable` - Money Owed to Me
         * `other` - Other
     BankStatement:
       type: object
@@ -3270,6 +3562,42 @@ components:
           pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
       required:
       - date
+    PatchedAssetRequest:
+      type: object
+      description: Serializer for owned assets.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        asset_type:
+          $ref: '#/components/schemas/AssetTypeEnum'
+        current_value:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+        currency:
+          type: string
+          minLength: 1
+          description: ISO 4217 code the value above is expressed in
+          maxLength: 3
+        is_liquid:
+          type: boolean
+          description: Convertible to cash within days; drives the emergency-fund
+            metrics
+        valued_at:
+          type: string
+          format: date
+          nullable: true
+          description: When this valuation was taken — a stale one quietly distorts
+            net worth
+        acquired_date:
+          type: string
+          format: date
+          nullable: true
+        notes:
+          type: string
+          nullable: true
     PatchedBankStatementRequest:
       type: object
       description: Serializer for uploaded bank statements.

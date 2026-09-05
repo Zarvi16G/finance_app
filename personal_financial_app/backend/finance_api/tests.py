@@ -12,7 +12,7 @@ from rest_framework.test import APIClient
 
 from .models import (
     FinancialRecord, UserSetting, BankStatement, ExpectedGoal,
-    ExtractedTransaction, Debt, Currency, ExchangeRate,
+    ExtractedTransaction, Debt, Currency, ExchangeRate, Asset,
 )
 from .crypto import decrypt_text
 from .services import currency_service
@@ -490,6 +490,117 @@ class KeyValidationEngineTests(TestCase):
             verdict = key_validation.validate_api_key('anthropic', 'ant-key')
             self.assertFalse(verdict['valid'])
             self.assertEqual(verdict['code'], key_validation.CODE_NETWORK)
+
+
+@override_settings(EXCHANGERATE_API_KEY='test-key-not-a-real-one')
+class PatrimonyTests(AuthTestCase):
+    """Net worth = what you own minus what you owe, in one currency."""
+
+    def setUp(self):
+        super().setUp()
+        for code, name, decimals in (('COP', 'Colombian Peso', 0), ('USD', 'US Dollar', 2)):
+            Currency.objects.update_or_create(
+                code=code, defaults={'name': name, 'decimals': decimals}
+            )
+        ExchangeRate.objects.create(
+            base='USD', target='COP', rate=Decimal('4000'), rate_date=date.today()
+        )
+
+        self.house = Asset.objects.create(
+            owner=self.user, name='Apartamento', asset_type='property',
+            current_value=Decimal('300000000'), currency='COP', is_liquid=False,
+        )
+        self.savings = Asset.objects.create(
+            owner=self.user, name='Ahorros', asset_type='savings',
+            current_value=Decimal('5000000'), currency='COP', is_liquid=True,
+        )
+        self.brokerage = Asset.objects.create(
+            owner=self.user, name='Brokerage', asset_type='investment',
+            current_value=Decimal('1000'), currency='USD', is_liquid=True,
+        )
+        self.mortgage = Debt.objects.create(
+            owner=self.user, name='Hipoteca', debt_type='mortgage', creditor='Banco',
+            original_amount=Decimal('200000000'), current_balance=Decimal('150000000'),
+            currency='COP', interest_rate=Decimal('12.00'),
+            minimum_payment=Decimal('2000000'), due_date=5, start_date=date.today(),
+        )
+
+    def test_net_worth_is_assets_minus_liabilities(self):
+        response = self.client.get('/api/patrimony/')
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        # 300M + 5M + (1000 USD * 4000) = 309.000.000 COP
+        self.assertEqual(body['total_assets'], 309000000.0)
+        self.assertEqual(body['total_liabilities'], 150000000.0)
+        self.assertEqual(body['net_worth'], 159000000.0)
+
+    def test_liquid_and_illiquid_are_reported_separately(self):
+        body = self.client.get('/api/patrimony/').json()
+        # A house is wealth but will not cover next month's rent.
+        self.assertEqual(body['liquid_assets'], 9000000.0)
+        self.assertEqual(body['illiquid_assets'], 300000000.0)
+
+    def test_debt_to_asset_ratio(self):
+        body = self.client.get('/api/patrimony/').json()
+        self.assertAlmostEqual(body['debt_to_asset'], 48.54, places=1)
+
+    def test_breakdowns_group_by_type(self):
+        body = self.client.get('/api/patrimony/').json()
+        by_type = {row['type']: row for row in body['assets_by_type']}
+        self.assertEqual(by_type['property']['total'], 300000000.0)
+        self.assertEqual(by_type['investment']['total'], 4000000.0)
+        self.assertEqual(body['liabilities_by_type'][0]['type'], 'mortgage')
+
+    def test_paid_off_debts_do_not_count_against_net_worth(self):
+        self.mortgage.status = 'paid_off'
+        self.mortgage.save()
+        body = self.client.get('/api/patrimony/').json()
+        self.assertEqual(body['total_liabilities'], 0.0)
+        self.assertEqual(body['net_worth'], 309000000.0)
+
+    def test_snapshot_records_net_worth(self):
+        snapshot = compute_monthly_snapshot(date.today().replace(day=1), self.user)
+        self.assertEqual(float(snapshot.total_assets), 309000000.0)
+        self.assertEqual(float(snapshot.net_worth), 159000000.0)
+        # Previously hardcoded to None for want of an asset registry
+        self.assertIsNotNone(snapshot.debt_to_asset)
+
+    def test_liquidity_defaults_from_the_type(self):
+        response = self.client.post('/api/assets/', {
+            'name': 'Cuenta corriente', 'asset_type': 'cash', 'current_value': '100000',
+        }, format='json')
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(response.json()['is_liquid'])
+
+    def test_an_explicit_liquidity_choice_is_respected(self):
+        """A locked-in savings account is savings, but not liquid."""
+        response = self.client.post('/api/assets/', {
+            'name': 'CDT a 5 años', 'asset_type': 'savings',
+            'current_value': '10000000', 'is_liquid': False,
+        }, format='json')
+        self.assertEqual(response.status_code, 201)
+        self.assertFalse(response.json()['is_liquid'])
+
+    def test_assets_inherit_the_base_currency(self):
+        response = self.client.post('/api/assets/', {
+            'name': 'Carro', 'asset_type': 'vehicle', 'current_value': '40000000',
+        }, format='json')
+        self.assertEqual(response.json()['currency'], 'COP')
+
+    def test_negative_values_are_rejected(self):
+        response = self.client.post('/api/assets/', {
+            'name': 'Deuda disfrazada', 'asset_type': 'other', 'current_value': '-500',
+        }, format='json')
+        self.assertEqual(response.status_code, 400)
+
+    def test_assets_are_isolated_between_users(self):
+        other_client, other, _ = self.register('patrimony-intruder')
+        self.assertEqual(other_client.get('/api/assets/').json(), [])
+        self.assertEqual(
+            other_client.get(f'/api/assets/{self.house.id}/').status_code, 404
+        )
+        # And their net worth is their own, not mine
+        self.assertEqual(other_client.get('/api/patrimony/').json()['net_worth'], 0.0)
 
 
 @override_settings(EXCHANGERATE_API_KEY='test-key-not-a-real-one')
