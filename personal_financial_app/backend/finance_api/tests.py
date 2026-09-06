@@ -1,6 +1,7 @@
 import time
 from datetime import date, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest import mock
 
 import pyotp
@@ -16,6 +17,7 @@ from .models import (
     ExperienceBudgetItem,
 )
 from .crypto import decrypt_text
+from .permissions import IsOwner
 from .services import currency_service, wealthness_service
 from .services.snapshot_service import compute_monthly_snapshot
 from .services.ai import key_validation
@@ -1398,6 +1400,85 @@ class ProfileDetailsTests(AuthTestCase):
         response = self.client.get('/api/profile/')
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.json()['two_factor']['enabled'])
+
+
+class IsOwnerPermissionTests(AuthTestCase):
+    """The second line of defence, checked on its own.
+
+    `OwnerScopedMixin` already filters every queryset, so `IsOwner` never
+    fires in normal operation — which is exactly why it needs its own test.
+    It exists to catch a view that one day loses the filter, and an untested
+    safety net is not one.
+
+    The interesting case is the models that have no `owner` column: an
+    extracted transaction belongs to whoever owns its statement, a budget line
+    to whoever owns its goal. Reading a literal `obj.owner` would deny those
+    rows to their rightful owner, so the permission walks the view's
+    `owner_lookup` instead.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.permission = IsOwner()
+
+    def _view(self, lookup=None, field='owner'):
+        """A stand-in carrying just the attributes IsOwner reads."""
+        return SimpleNamespace(owner_lookup=lookup, owner_field=field)
+
+    def test_allows_the_owner_of_a_row_that_has_the_column(self):
+        record = FinancialRecord.objects.create(
+            owner=self.user, type='expense', category='Food & Dining',
+            amount=Decimal('10.00'), date=date.today(), description='mine',
+        )
+        request = SimpleNamespace(user=self.user)
+        self.assertTrue(
+            self.permission.has_object_permission(request, self._view(), record)
+        )
+
+    def test_denies_everyone_else(self):
+        record = FinancialRecord.objects.create(
+            owner=self.user, type='expense', category='Food & Dining',
+            amount=Decimal('10.00'), date=date.today(), description='mine',
+        )
+        _, intruder, _ = self.register('intruder')
+        request = SimpleNamespace(user=intruder)
+        self.assertFalse(
+            self.permission.has_object_permission(request, self._view(), record)
+        )
+
+    def test_follows_the_lookup_for_a_row_that_inherits_its_owner(self):
+        """A budget line has no owner column; its goal does."""
+        goal = ExpectedGoal.objects.create(
+            owner=self.user, title='Japan', goal_type='experience',
+            target_amount=Decimal('100'), current_amount=Decimal('0'),
+            start_date=date.today(), end_date=date.today(), category='travel',
+        )
+        line = ExperienceBudgetItem.objects.create(
+            goal=goal, label='Flights', category='transport',
+            estimated_amount=Decimal('50'), currency='COP',
+        )
+        view = self._view(lookup='goal__owner', field=None)
+
+        self.assertTrue(
+            self.permission.has_object_permission(
+                SimpleNamespace(user=self.user), view, line
+            )
+        )
+        _, intruder, _ = self.register('intruder')
+        self.assertFalse(
+            self.permission.has_object_permission(
+                SimpleNamespace(user=intruder), view, line
+            )
+        )
+
+    def test_denies_a_row_whose_owner_cannot_be_resolved(self):
+        """Safe direction: an unresolvable owner is a denial, not a pass."""
+        request = SimpleNamespace(user=self.user)
+        self.assertFalse(
+            self.permission.has_object_permission(
+                request, self._view(), SimpleNamespace(owner=None)
+            )
+        )
 
 
 class MultiTenancyIsolationTests(AuthTestCase):
