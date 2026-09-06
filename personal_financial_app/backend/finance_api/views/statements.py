@@ -1,6 +1,7 @@
 """API views for bank statement upload and processing."""
 import hashlib
 
+from django.core.exceptions import ValidationError
 from django.http import FileResponse
 from django.utils import timezone
 from rest_framework import status, viewsets
@@ -9,23 +10,18 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
 
 from ..models import BankStatement
-from ..permissions import IsOwner
 from ..serializers import BankStatementSerializer, ExtractedTransactionSerializer
 from ..services.statement_parser import process_statement
-from ..services.statement_totals import refresh_usd_amounts
+from .mixins import OwnerScopedMixin
 
 
-class BankStatementViewSet(viewsets.ModelViewSet):
+class BankStatementViewSet(OwnerScopedMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing bank statement uploads and processing.
     """
     queryset = BankStatement.objects.all()
     serializer_class = BankStatementSerializer
     parser_classes = (MultiPartParser, FormParser, JSONParser)
-    permission_classes = [IsOwner]
-
-    def get_queryset(self):
-        return super().get_queryset().filter(owner=self.request.user)
 
     def create(self, request, *args, **kwargs):
         file_obj = request.FILES.get('file')
@@ -40,8 +36,11 @@ class BankStatementViewSet(viewsets.ModelViewSet):
         content_hash = hashlib.sha256(file_obj.read()).hexdigest()
         file_obj.seek(0)
 
-        # Check for duplicate (scoped to this user - hashes are unique per owner)
-        existing = self.get_queryset().filter(content_hash=content_hash).first()
+        # Check for duplicate — scoped to this user, so one account never
+        # learns that another account uploaded the same document.
+        existing = BankStatement.objects.filter(
+            owner=request.user, content_hash=content_hash
+        ).first()
         if existing:
             return Response({
                 'error': 'Duplicate file detected',
@@ -64,13 +63,8 @@ class BankStatementViewSet(viewsets.ModelViewSet):
             status='processing'
         )
 
-        # Process synchronously with optional password and user for usd_amount
-        process_statement(statement, password, request.user)
-
-        # Set initial totals_updated_at after extraction
-        from django.utils import timezone as tz
-        statement.totals_updated_at = tz.now()
-        statement.save(update_fields=['totals_updated_at'])
+        # Process synchronously with optional password
+        process_statement(statement, password)
 
         # Refresh to get updated status
         statement.refresh_from_db()
@@ -85,7 +79,7 @@ class BankStatementViewSet(viewsets.ModelViewSet):
             return Response({'error': 'statement_id query parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
         try:
             statement = self.get_queryset().get(id=statement_id)
-        except (BankStatement.DoesNotExist, ValueError):
+        except (BankStatement.DoesNotExist, ValueError, ValidationError):
             return Response({'error': 'Statement not found'}, status=status.HTTP_404_NOT_FOUND)
 
         transactions = statement.extracted_transactions.all()
@@ -118,10 +112,7 @@ class BankStatementViewSet(viewsets.ModelViewSet):
         statement.save()
 
         try:
-            process_statement(statement, statement.password, request.user)
-            from django.utils import timezone as tz
-            statement.totals_updated_at = tz.now()
-            statement.save(update_fields=['totals_updated_at'])
+            process_statement(statement, statement.password)
         except Exception as e:
             statement.status = 'failed'
             statement.error_message = str(e)

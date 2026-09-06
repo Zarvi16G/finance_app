@@ -8,8 +8,9 @@ from .goals import ExpectedGoalSerializer
 from .statements import BankStatementSerializer, ExtractedTransactionSerializer, CategorizationReviewSerializer
 from .debts import DebtSerializer
 from .snapshots import FinancialSnapshotSerializer
-from .currency_rates import CurrencyRateSerializer
 from .auth import RegisterSerializer
+from .patrimony import AssetSerializer
+from .experiences import ExperienceBudgetItemSerializer
 
 __all__ = [
     'FinancialRecordSerializer',
@@ -19,6 +20,7 @@ __all__ = [
     'CategorizationReviewSerializer',
     'DebtSerializer',
     'FinancialSnapshotSerializer',
-    'CurrencyRateSerializer',
     'RegisterSerializer',
+    'AssetSerializer',
+    'ExperienceBudgetItemSerializer',
 ]

@@ -15,6 +15,17 @@ class ExpectedGoal(models.Model):
         ('failed', 'Failed'),
     ]
 
+    # What kind of goal this is. Experiences (a trip, a course, a wedding) get
+    # an itemised budget attached; the rest are a single number to reach.
+    GOAL_TYPES = [
+        ('savings', 'Savings'),
+        ('experience', 'Life Experience'),
+        ('emergency_fund', 'Emergency Fund'),
+        ('debt_payoff', 'Debt Payoff'),
+        ('purchase', 'Purchase'),
+        ('other', 'Other'),
+    ]
+
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -25,6 +36,24 @@ class ExpectedGoal(models.Model):
     title = models.CharField(
         max_length=100,
         help_text="Name of the financial goal"
+    )
+
+    goal_type = models.CharField(
+        max_length=20,
+        choices=GOAL_TYPES,
+        default='savings',
+        help_text="Experience goals can carry an itemised budget",
+    )
+
+    # Only meaningful for experiences: when the trip actually happens, which
+    # is not the same as when you stop saving for it.
+    experience_date = models.DateField(
+        null=True, blank=True,
+        help_text="When the experience takes place, if it has a fixed date",
+    )
+    location = models.CharField(
+        max_length=120, blank=True, default='',
+        help_text="Where the experience takes place",
     )
 
     target_amount = models.DecimalField(
@@ -38,6 +67,12 @@ class ExpectedGoal(models.Model):
         decimal_places=2,
         default=0.00,
         help_text="The current progress or recent status towards the target"
+    )
+
+    currency = models.CharField(
+        max_length=3,
+        default='COP',
+        help_text="ISO 4217 code for both amounts above",
     )
 
     start_date = models.DateField(

@@ -17,6 +17,6 @@ class FinancialSnapshotSerializer(serializers.ModelSerializer):
             'debt_to_income', 'debt_to_asset',
             'income_growth_yoy', 'expense_growth_yoy', 'net_worth_growth',
             'expenses_per_category', 'total_liabilities', 'total_assets',
-            'net_worth', 'created_at'
+            'net_worth', 'liquid_assets', 'emergency_fund_months', 'created_at'
         ]
         read_only_fields = ['created_at']

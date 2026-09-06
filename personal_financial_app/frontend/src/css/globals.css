@@ -1,9 +1,14 @@
-/* Global stylesheet: Tailwind v4 entry, Ledgerline fonts and theme tokens.
-   Every screen is a page from a printed bank statement: green ledger paper,
-   ink-black type, hairline rules, and tabular monospaced figures. */
+/* Global stylesheet: Tailwind v4 entry, fonts and theme tokens.
+   Direction B — "editorial calmado": warm paper ground, hairline rules,
+   figures set in Newsreader with tabular numerals, interface in Public Sans.
+
+   The one rule that governs the palette: the brand colour (indigo) belongs
+   to a different family than the money colours (green income, red expense,
+   amber intermediate), so nothing decorative can be mistaken for a
+   semantic reading of an amount. */
 
 @import 'tailwindcss';
-@import url('https://fonts.googleapis.com/css2?family=Gloock&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:ital,opsz,wght@0,8..144,100..900;1,8..144,100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Public+Sans:wght@400;500;600&display=swap');
 @import './app.css';
 
 @import './layouts/container.css' layer(utilities);
@@ -21,18 +26,22 @@ main {
 
 @theme {
   --font-sans: 'Public Sans', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', monospace;
-  --font-display: 'Gloock', Georgia, 'Times New Roman', serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  /* Newsreader carries both the headlines and every figure, so an amount and
+     the sentence about it are visibly the same voice. */
+  --font-display: 'Newsreader', Georgia, 'Times New Roman', serif;
+  --font-fig: 'Newsreader', Georgia, 'Times New Roman', serif;
 
-  --shadow-lg: 0 1rem 2.5rem rgba(24, 37, 28, 0.1);
-  --shadow-sm: 0 1px 2px rgba(24, 37, 28, 0.05);
-  --shadow-md: 0 2px 6px rgba(24, 37, 28, 0.06);
-  --shadow-btn-shadow: 0 1px 2px rgba(24, 37, 28, 0.08);
+  /* The design leans on rules, not elevation: shadows stay nearly invisible. */
+  --shadow-lg: 0 1rem 2.5rem rgba(36, 31, 27, 0.07);
+  --shadow-sm: 0 1px 2px rgba(36, 31, 27, 0.04);
+  --shadow-md: 0 2px 6px rgba(36, 31, 27, 0.05);
+  --shadow-btn-shadow: 0 1px 2px rgba(36, 31, 27, 0.06);
 
-  --radius-sm: 2px;
-  --radius-md: 2px;
-  --radius-lg: 4px;
-  --radius-tw: 4px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-tw: 0px;
 
   --leading-21: 21px;
 
@@ -88,6 +97,12 @@ main {
   --color-error: var(--error);
   --color-dark: var(--dark);
   --color-bodytext: var(--bodytext);
+  /* Three inks, not two: full ink for figures and headings, soft for running
+     text, muted for labels and eyebrows. */
+  --color-inksoft: var(--ink-soft);
+  /* The heavy rule that opens a section, against the hairline that separates
+     rows inside it. */
+  --color-rulestrong: var(--rule-strong);
   --color-lightprimary: var(--lightprimary);
   --color-lightsecondary: var(--lightsecondary);
   --color-lightsuccess: var(--lightsuccess);
@@ -103,49 +118,52 @@ main {
 }
 
 :root {
-  --radius: 4px;
+  --radius: 0px;
 
-  /* Ledger stock */
-  --background: #e9eee2; /* desk behind the sheets */
-  --foreground: #18251c; /* ink */
-  --card: #f7faf3; /* paper sheet */
-  --card-foreground: #18251c;
-  --popover: #f7faf3;
-  --popover-foreground: #18251c;
-  --primary: #18251c; /* ink — the primary action is a printed one */
-  --primary-foreground: #f7faf3;
-  --secondary: #5b7261; /* sage grey */
-  --secondary-foreground: #f7faf3;
-  --muted: #e1e7d8; /* pencil track */
-  --muted-foreground: #5e6b5c;
-  --accent: #e9efe1;
-  --accent-foreground: #18251c;
-  --destructive: #b23a2e;
-  --destructive-foreground: #f7faf3;
-  --border: #d3dcc9; /* ruled line */
-  --input: #d3dcc9;
-  --ring: #18251c;
-  --chart-1: #1e7a52; /* credit */
-  --chart-2: #b23a2e; /* debit */
-  --chart-3: #6b4fd8; /* stamp */
-  --chart-4: #a5670b; /* amber ink */
-  --chart-5: #3e5c76; /* slate */
-  --sidebar: #e9eee2;
-  --sidebar-foreground: #18251c;
-  --sidebar-primary: #18251c;
-  --sidebar-primary-foreground: #f7faf3;
-  --sidebar-accent: #dfe6d4;
-  --sidebar-accent-foreground: #18251c;
-  --sidebar-border: #d3dcc9;
-  --sidebar-ring: #18251c;
+  /* Paper */
+  --background: #f6f4ef; /* the ground the sheets sit on */
+  --foreground: #241f1b; /* ink */
+  --card: #fffdf9; /* surface */
+  --card-foreground: #241f1b;
+  --popover: #fffdf9;
+  --popover-foreground: #241f1b;
+  /* Indigo: action, links, active navigation. Never means money. */
+  --primary: #3b4a6b;
+  --primary-foreground: #f6f4ef;
+  --secondary: #b3aa9e; /* the faint tone of an unmeasured value */
+  --secondary-foreground: #241f1b;
+  --muted: #e8e3da; /* the empty half of a bar */
+  --muted-foreground: #8b8078; /* labels and eyebrows */
+  --accent: #eceade;
+  --accent-foreground: #241f1b;
+  --destructive: #9c4a3a;
+  --destructive-foreground: #f6f4ef;
+  --border: #e2ddd3; /* hairline between rows */
+  --input: #d6d0c4; /* field outline, a shade firmer than a row rule */
+  --ring: #3b4a6b;
+  --chart-1: #2f6b4f; /* income */
+  --chart-2: #9c4a3a; /* expense */
+  --chart-3: #3b4a6b; /* brand — structural series, not an amount */
+  --chart-4: #8a5c1e; /* intermediate */
+  --chart-5: #8b8078; /* remainder */
+  --sidebar: #f6f4ef;
+  --sidebar-foreground: #241f1b;
+  --sidebar-primary: #3b4a6b;
+  --sidebar-primary-foreground: #f6f4ef;
+  --sidebar-accent: #eceade;
+  --sidebar-accent-foreground: #241f1b;
+  --sidebar-border: #e2ddd3;
+  --sidebar-ring: #3b4a6b;
 
   /* CUSTOM COLORS */
-  --info: #6b4fd8;
-  --success: #1e7a52;
-  --warning: #a5670b;
-  --error: #b23a2e;
+  --info: #3b4a6b;
+  --success: #2f6b4f; /* money in, or a metric in a good band */
+  --warning: #8a5c1e; /* adequate but improvable — never used on an amount */
+  --error: #9c4a3a; /* money out, or a metric that needs attention */
   --white: #ffffff;
-  --dark: #0d120d;
+  --dark: #241f1b;
+  --ink-soft: #59504a;
+  --rule-strong: #241f1b;
 
   /* Light Variants */
   --lightprimary: color-mix(in oklab, var(--primary) 10%, transparent);
@@ -163,52 +181,57 @@ main {
   --error-emphasis: color-mix(in oklab, var(--error) 85%, black);
   --info-emphasis: color-mix(in oklab, var(--info) 85%, black);
 
-  --bodytext: #5e6b5c;
+  --bodytext: #59504a;
 }
 
-/* The ledger after hours: ink inverts to paper, credit/debit glow slightly. */
+/* After hours: the same paper under lamplight. Every role keeps its meaning —
+   only the values swap — so a green figure still reads as income. */
 .dark {
-  --background: #0d120d;
-  --foreground: #e7ede1;
-  --card: #141b14;
-  --card-foreground: #e7ede1;
-  --popover: #141b14;
-  --popover-foreground: #e7ede1;
-  --primary: #e7ede1;
-  --primary-foreground: #0d120d;
-  --secondary: #8fa393;
-  --secondary-foreground: #0d120d;
-  --muted: #202a20;
-  --muted-foreground: #8c9989;
-  --accent: #1d281e;
-  --accent-foreground: #e7ede1;
-  --destructive: #e0654f;
-  --destructive-foreground: #0d120d;
-  --border: #27342a;
-  --input: #27342a;
-  --ring: #e7ede1;
-  --chart-1: #4cc391;
-  --chart-2: #e0654f;
-  --chart-3: #9d8af0;
-  --chart-4: #d9a23f;
-  --chart-5: #7a9cc0;
-  --sidebar: #0d120d;
-  --sidebar-foreground: #e7ede1;
-  --sidebar-primary: #e7ede1;
-  --sidebar-primary-foreground: #0d120d;
-  --sidebar-accent: #1d281e;
-  --sidebar-accent-foreground: #e7ede1;
-  --sidebar-border: #27342a;
-  --sidebar-ring: #e7ede1;
+  --background: #191714;
+  --foreground: #ece7dd;
+  --card: #201d19;
+  --card-foreground: #ece7dd;
+  --popover: #201d19;
+  --popover-foreground: #ece7dd;
+  --primary: #93a0c4;
+  --primary-foreground: #191714;
+  --secondary: #7d746a;
+  --secondary-foreground: #ece7dd;
+  --muted: #2a251f;
+  --muted-foreground: #7d746a;
+  --accent: #2a251f;
+  --accent-foreground: #ece7dd;
+  --destructive: #cf7d68;
+  --destructive-foreground: #191714;
+  --border: #322d26;
+  --input: #3d372e;
+  --ring: #93a0c4;
+  --chart-1: #5aa87d;
+  --chart-2: #cf7d68;
+  --chart-3: #93a0c4;
+  --chart-4: #cc9a4a;
+  --chart-5: #7d746a;
+  --sidebar: #191714;
+  --sidebar-foreground: #ece7dd;
+  --sidebar-primary: #93a0c4;
+  --sidebar-primary-foreground: #191714;
+  --sidebar-accent: #2a251f;
+  --sidebar-accent-foreground: #ece7dd;
+  --sidebar-border: #322d26;
+  --sidebar-ring: #93a0c4;
 
   /* CUSTOM COLORS */
-  --info: #9d8af0;
-  --success: #4cc391;
-  --warning: #d9a23f;
-  --error: #e0654f;
+  --info: #93a0c4;
+  --success: #5aa87d;
+  --warning: #cc9a4a;
+  --error: #cf7d68;
   --white: #ffffff;
-  --dark: #0d120d;
-  --bodytext: #8c9989;
+  --dark: #191714;
+  --ink-soft: #b0a89c;
+  /* In the dark theme the heavy rule is a light one — it is still the
+     strongest line on the page, which is what the role means. */
+  --rule-strong: #ece7dd;
+  --bodytext: #b0a89c;
 
   /* Light Variants */
   --lightprimary: color-mix(in oklab, var(--primary) 14%, transparent);
@@ -280,10 +303,27 @@ main {
   @apply hover:bg-lightprimary;
 }
 
-/* Letterhead: the statement heading convention used on every page.
-   Mono uppercase eyebrow, Gloock serif title, hairline rule below. */
+/* Eyebrow: the small uppercase line that names the section above its title. */
 @utility letterhead {
-  @apply font-mono text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground;
+  @apply text-[12px] uppercase tracking-[0.15em] text-muted-foreground;
+}
+
+/* A shorter, tighter eyebrow for the labels inside a figure block. */
+@utility eyebrow-sm {
+  @apply text-[11px] uppercase tracking-[0.14em] text-muted-foreground;
+}
+
+/* Every number on every screen. Newsreader with tabular numerals so figures
+   in a column line up digit over digit. */
+@utility fig {
+  font-family: var(--font-fig);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* The rule that opens a section, as opposed to `border-border` between rows. */
+@utility rule-strong {
+  border-color: var(--rule-strong);
 }
 
 @layer utilities {
@@ -297,14 +337,15 @@ main {
     @apply text-sm overflow-x-hidden antialiased;
   }
 
-  /*heading text color*/
+  /* Headings are Newsreader at medium weight — the serif does the emphasis,
+     so nothing here needs to be bold. */
   h1,
   h2,
   h3,
   h4,
   h5,
   h6 {
-    @apply text-foreground font-semibold;
+    @apply text-foreground font-medium;
   }
 
   input::placeholder {

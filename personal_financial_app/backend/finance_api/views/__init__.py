@@ -14,9 +14,16 @@ from .choices import ChoiceView, CustomCategoryView, CustomTypeView
 from .profile import ProfileSettingsView
 from .analytics import FinancialAnalyticsView
 from .debts import DebtViewSet
-from .currency_rates import CurrencyRateViewSet
 from .snapshots import FinancialSnapshotViewSet
-from .auth import RegisterView, LoginView, LogoutView, MeView
+from .auth import RegisterView, LoginView, LogoutView, MeView, TwoFactorLoginVerifyView
+from .currency import CurrencyListView, CurrencyConvertView
+from .patrimony import AssetViewSet, PatrimonyView
+from .wealthness import WealthnessView
+from .experiences import ExperienceBudgetItemViewSet, LifeExperiencesView
+from .two_factor import (
+    TwoFactorStatusView, TwoFactorSetupView, TwoFactorEnableView,
+    TwoFactorDisableView, TwoFactorBackupCodesView,
+)
 
 __all__ = [
     'FinancialRecordViewSet',
@@ -36,10 +43,22 @@ __all__ = [
     'ProfileSettingsView',
     'FinancialAnalyticsView',
     'DebtViewSet',
-    'CurrencyRateViewSet',
     'FinancialSnapshotViewSet',
     'RegisterView',
     'LoginView',
     'LogoutView',
     'MeView',
+    'TwoFactorLoginVerifyView',
+    'TwoFactorStatusView',
+    'TwoFactorSetupView',
+    'TwoFactorEnableView',
+    'TwoFactorDisableView',
+    'TwoFactorBackupCodesView',
+    'CurrencyListView',
+    'CurrencyConvertView',
+    'AssetViewSet',
+    'PatrimonyView',
+    'WealthnessView',
+    'ExperienceBudgetItemViewSet',
+    'LifeExperiencesView',
 ]

@@ -7,6 +7,7 @@ from drf_spectacular.utils import extend_schema, OpenApiTypes
 from ..models import FinancialRecord, ExpectedGoal
 from ..services.analysis_service import run_financial_analysis
 from ..services.filters import apply_filters_to_queryset
+from ..services.snapshot_service import base_currency_for
 
 
 @extend_schema(
@@ -26,13 +27,13 @@ class AIAnalysisView(APIView):
     if no active external local LLM is detected.
     """
     def post(self, request, *args, **kwargs):
-        # 1. Fetch current financial dataset & apply active filtering
+        # 1. Fetch this user's financial dataset & apply active filtering
         records = FinancialRecord.objects.filter(owner=request.user)
         records = apply_filters_to_queryset(request, records)
 
-        # 2. Retrieve financial goals
+        # 2. Retrieve this user's financial goals
         goals = ExpectedGoal.objects.filter(owner=request.user)
 
-        result = run_financial_analysis(records, goals)
+        result = run_financial_analysis(records, goals, base_currency_for(request.user))
 
         return Response(result, status=status.HTTP_200_OK)

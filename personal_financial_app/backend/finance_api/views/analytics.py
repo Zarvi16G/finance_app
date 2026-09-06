@@ -44,11 +44,13 @@ class FinancialAnalyticsView(APIView):
             end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
 
         # Try to serve from pre-computed snapshots
-        snapshot_data = build_dashboard_from_snapshots(request.user, start_date, end_date)
+        snapshot_data = build_dashboard_from_snapshots(start_date, end_date, request.user)
         if snapshot_data is not None:
             debts = Debt.objects.filter(owner=request.user, status='active')
-            snapshot_data['debt_summary'] = get_debt_summary(debts)
+            snapshot_data['debt_summary'] = get_debt_summary(
+                debts, snapshot_data['base_currency']
+            )
             return Response(snapshot_data)
 
         # Fall back to live computation
-        return Response(build_dashboard_data(request.user, start_date, end_date))
+        return Response(build_dashboard_data(start_date, end_date, request.user))

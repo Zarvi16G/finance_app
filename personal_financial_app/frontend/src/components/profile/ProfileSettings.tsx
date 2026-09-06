@@ -1,157 +1,83 @@
 /**
- * Profile settings page: currency preference
- plus custom category/type vocabulary
- (Choice) management with AI-key setup.
+ * Perfil y seguridad — identity, base currency, the second factor, and the
+ * vocabulary of categories and types.
+ *
+ * The base currency is the setting with the widest reach: it decides the
+ * currency every total on every other screen is read in. The copy next to it
+ * says the thing that is easy to get wrong — each movement keeps the currency
+ * it actually happened in, and the conversion is computed when it is
+ * displayed, never written over the original amount.
  */
 import { useEffect, useState, type FormEvent } from 'react';
-import CardBox from '../shared/CardBox';
+import { useTranslation } from 'react-i18next';
 import PageHeader from '../shared/PageHeader';
+import TwoFactorSection from './TwoFactorSection';
+import { SettingsPanel } from './AiSettingsPanel';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../ui/dialog';
 import { Badge } from '../ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { profileApi } from '../../api/profile';
-import { exchangeRatesApi } from '../../api/exchangeRates';
-import { aiApi } from '../../api/ai';
+import { currencyApi } from '../../api/currency';
 import { getErrorMessage } from '../../api/client';
-import { useProfileCurrency } from '../../hooks/useProfileCurrency';
-import type { AIConfig, ProfileSettings, CurrencyRate } from '../../types';
-import { Icon } from '@iconify/react';
+import type { Currency, ProfileSettings as ProfileSettingsType, TwoFactorStatus } from '../../types';
 
-const PROVIDERS = [
-  { value: 'gemini', label: 'Gemini (Google)' },
-  { value: 'openai', label: 'OpenAI' },
-  { value: 'anthropic', label: 'Anthropic' },
-];
-
-export function ApiKeyModal({
-  open,
-  onOpenChange,
-  provider,
-  onSaved,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  provider: string;
-  onSaved: (config: AIConfig) => void;
-}) {
-  const [apiKey, setApiKey] = useState('');
+export default function ProfileSettings() {
+  const { t } = useTranslation();
+  const [settings, setSettings] = useState<ProfileSettingsType | null>(null);
+  const [currencies, setCurrencies] = useState<Currency[]>([]);
+  const [identity, setIdentity] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone_number: '',
+  });
+  const [currency, setCurrency] = useState('COP');
+  const [newType, setNewType] = useState('');
+  const [newCategory, setNewCategory] = useState('');
+  const [newCategoryType, setNewCategoryType] = useState('expense');
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const handleSave = async (e: FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    setError('');
-    setFieldErrors({});
-    try {
-      const config = await aiApi.saveSettings({ provider, api_key: apiKey });
-      setApiKey('');
-      onSaved(config);
-      onOpenChange(false);
-    } catch (err) {
-      const message = getErrorMessage(err);
-      setError(message);
-      const data = (err as { response?: { data?: { error_code?: string } } }).response?.data;
-      if (data?.error_code === 'invalid_key') {
-        setFieldErrors((f) => ({ ...f, api_key: message }));
-      }
-    } finally {
-      setSaving(false);
-    }
+  const adopt = (data: ProfileSettingsType) => {
+    setSettings(data);
+    setCurrency(data.currency);
+    setIdentity({
+      first_name: data.first_name ?? '',
+      last_name: data.last_name ?? '',
+      email: data.email ?? '',
+      phone_number: data.phone_number ?? '',
+    });
   };
-
-  const providerLabel = PROVIDERS.find((p) => p.value === provider)?.label ?? provider;
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Configure {providerLabel} API Key</DialogTitle>
-          <DialogDescription>
-            The key is validated live, encrypted at rest, and returned masked.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSave} className="space-y-4">
-          <div>
-            <Label htmlFor="api-key">API Key</Label>
-            <Input
-              id="api-key"
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Paste your API key"
-              required
-            />
-            {fieldErrors.api_key && (
-              <p className="mt-1 text-xs text-error">{fieldErrors.api_key}</p>
-            )}
-          </div>
-          {error && <p className="rounded-md bg-error/10 px-3 py-2 text-sm text-error">{error}</p>}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={saving || !apiKey}>
-              {saving ? 'Validating…' : 'Save Key'}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-export function SettingsPanel() {
-  const [config, setConfig] = useState<AIConfig | null>(null);
-  const [provider, setProvider] = useState('gemini');
-  const [model, setModel] = useState('');
-  const [error, setError] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [keyModalOpen, setKeyModalOpen] = useState(false);
-  const [keyProvider, setKeyProvider] = useState('gemini');
 
   useEffect(() => {
-    aiApi
-      .getSettings()
-      .then((c) => {
-        setConfig(c);
-        setProvider(c.provider);
-        setModel(c.model);
-      })
-      .catch((err) => setError(getErrorMessage(err)));
+    profileApi.get().then(adopt).catch((err) => setError(getErrorMessage(err)));
+    currencyApi
+      .catalog()
+      .then((c) => setCurrencies(c.currencies))
+      .catch(() => setCurrencies([]));
   }, []);
 
-  const handleProviderChange = (value: string) => {
-    setProvider(value);
-    if (config?.default_models?.[value]) {
-      setModel(config.default_models[value]);
-    }
-  };
-
-  const handleSaveSettings = async (e: FormEvent) => {
+  const save = async (e: FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    setSaved(false);
     setError('');
     try {
-      const updated = await aiApi.saveSettings({ provider, model });
-      setConfig(updated);
+      adopt(
+        await profileApi.update({
+          ...identity,
+          currency,
+          new_type: newType,
+          new_category: newCategory,
+          new_category_type: newCategoryType,
+        }),
+      );
+      setNewType('');
+      setNewCategory('');
+      setSaved(true);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -159,270 +85,171 @@ export function SettingsPanel() {
     }
   };
 
-  const maskedKey = config?.keys?.[provider];
+  const onTwoFactorChanged = (status: TwoFactorStatus) =>
+    setSettings((s) => (s ? { ...s, two_factor: status } : s));
+
+  if (!settings) {
+    return error ? (
+      <p className="border border-error/40 bg-lighterror p-4 text-sm text-error">{error}</p>
+    ) : (
+      <p className="text-sm text-muted-foreground">{t('profile.loading')}</p>
+    );
+  }
+
+  // The phone the user is currently editing may differ from the saved one; the
+  // verification badge describes what is stored, not what is typed.
+  const phoneChanged = identity.phone_number !== (settings.phone_number ?? '');
 
   return (
-    <div className="space-y-4">
-      {error && <p className="rounded-md bg-error/10 px-3 py-2 text-sm text-error">{error}</p>}
+    <div className="flex flex-col gap-8">
+      <PageHeader eyebrow={t('profile.eyebrow')} title={t('profile.title')} />
 
-      <form onSubmit={handleSaveSettings} className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
+      {error && <p className="bg-lighterror px-3 py-2 text-sm text-error">{error}</p>}
+
+      <form onSubmit={save} className="flex flex-col gap-8">
+        {/* Identity + base currency */}
+        <div className="grid gap-11 border-t rule-strong pt-6 lg:grid-cols-2">
           <div>
-            <Label htmlFor="ai-provider">AI Provider</Label>
-            <Select value={provider} onValueChange={handleProviderChange}>
-              <SelectTrigger id="ai-provider" className="mt-2">
+            <div className="fig mb-4 text-[19px] font-medium">{t('profile.personalDetails')}</div>
+            <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="p-first">{t('profile.firstName')}</Label>
+                  <Input
+                    id="p-first"
+                    className="mt-2"
+                    value={identity.first_name}
+                    onChange={(e) => setIdentity({ ...identity, first_name: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="p-last">{t('profile.lastName')}</Label>
+                  <Input
+                    id="p-last"
+                    className="mt-2"
+                    value={identity.last_name}
+                    onChange={(e) => setIdentity({ ...identity, last_name: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="p-email">{t('profile.email')}</Label>
+                <Input
+                  id="p-email"
+                  type="email"
+                  className="mt-2"
+                  value={identity.email}
+                  onChange={(e) => setIdentity({ ...identity, email: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="p-phone">{t('profile.phone')}</Label>
+                <div className="mt-2 flex items-center gap-3">
+                  <Input
+                    id="p-phone"
+                    type="tel"
+                    className="flex-grow"
+                    value={identity.phone_number}
+                    onChange={(e) => setIdentity({ ...identity, phone_number: e.target.value })}
+                    placeholder={t('profile.phonePlaceholder')}
+                  />
+                  {identity.phone_number && !phoneChanged && (
+                    <span
+                      className={`shrink-0 text-xs ${
+                        settings.phone_verified ? 'text-success' : 'text-warning'
+                      }`}
+                    >
+                      {t(settings.phone_verified ? 'profile.verified' : 'profile.unverified')}
+                    </span>
+                  )}
+                </div>
+                <p className="m-0 mt-2 text-xs leading-relaxed text-muted-foreground">
+                  {t('profile.phoneNote')}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="lg:border-l lg:border-border lg:pl-11">
+            <div className="fig mb-4 text-[19px] font-medium">{t('profile.baseCurrency')}</div>
+            <Select value={currency} onValueChange={setCurrency}>
+              <SelectTrigger id="p-currency" className="h-auto py-3">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {PROVIDERS.map((p) => (
-                  <SelectItem key={p.value} value={p.value}>
-                    {p.label}
+                {(currencies.length
+                  ? currencies
+                  : [{ code: currency, name: currency, symbol: '', decimals: 2 }]
+                ).map((c) => (
+                  <SelectItem key={c.code} value={c.code}>
+                    <span className="fig font-semibold">{c.code}</span>
+                    <span className="ml-3 text-inksoft">{c.name}</span>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div>
-            <Label htmlFor="ai-model">Model</Label>
-            <Input
-              id="ai-model"
-              className="mt-2"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder={config?.default_models?.[provider] ?? 'Default model'}
-            />
-            {config?.default_models?.[provider] && (
-              <p className="mt-1 text-xs text-muted-foreground">
-                Default: {config.default_models[provider]}
-              </p>
-            )}
-          </div>
-        </div>
-        <Button type="submit" disabled={saving}>
-          {saving ? 'Saving…' : 'Save Settings'}
-        </Button>
-      </form>
-
-      <div className="rounded-sm border border-border p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-medium text-foreground">API Key — {provider}</p>
-            <p className="text-sm text-muted-foreground">
-              {maskedKey ? `Stored: ${maskedKey}` : 'No key stored yet'}
+            <p className="m-0 mt-3 text-sm leading-relaxed text-inksoft">
+              {t('profile.baseCurrencyNote')}
+            </p>
+            <p className="m-0 mt-3.5 text-[13px] leading-relaxed text-muted-foreground">
+              {t('profile.ratesNote')}
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => { setKeyProvider(provider); setKeyModalOpen(true); }}>
-            <Icon icon="solar:key-linear" height={16} width={16} className="mr-2" />
-            {maskedKey ? 'Replace Key' : 'Add Key'}
-          </Button>
         </div>
-      </div>
 
-      <ApiKeyModal
-        open={keyModalOpen}
-        onOpenChange={setKeyModalOpen}
-        provider={keyProvider}
-        onSaved={setConfig}
-      />
-    </div>
-  );
-}
-
-export default function ProfileSettings() {
-  const [settings, setSettings] = useState<ProfileSettings | null>(null);
-  const [newType, setNewType] = useState('');
-  const [newCategory, setNewCategory] = useState('');
-  const [newCategoryType, setNewCategoryType] = useState('expense');
-  const [rates, setRates] = useState<CurrencyRate[]>([]);
-  const [newCurrencyCode, setNewCurrencyCode] = useState('');
-  const [newCurrencyRate, setNewCurrencyRate] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [savingRates, setSavingRates] = useState(false);
-  const [ratesError, setRatesError] = useState('');
-  const [error, setError] = useState('');
-  const { profileCurrency } = useProfileCurrency();
-
-  const fetchRates = async () => {
-    setRatesError('');
-    try {
-      const data = await exchangeRatesApi.list();
-      setRates(data);
-    } catch (err) {
-      setRatesError(getErrorMessage(err));
-    }
-  };
-
-  useEffect(() => {
-    // Use profileCurrency from hook (reads cookie on mount)
-    setCurrency(profileCurrency);
-  }, [profileCurrency]);
-
-  const handleSave = async (e: FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    setError('');
-    try {
-      const updated = await profileApi.update({
-        currency,
-        new_type: newType,
-        new_category: newCategory,
-        new_category_type: newCategoryType,
-      });
-      setSettings(updated);
-      setNewType('');
-      setNewCategory('');
-      // Refresh page to apply new currency/state across all components
-      window.location.reload();
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  useEffect(() => {
-    if (settings?.currency) {
-      setCurrency(settings.currency);
-    }
-  }, [settings?.currency]);
-
-  const handleRateChange = (index: number, field: 'currency_code' | 'rate_to_cop', value: string) => {
-    setRates((prev) =>
-      prev.map((r, i) => (i === index ? { ...r, [field]: field === 'rate_to_cop' ? Number(value) : value } : r)),
-    );
-  };
-
-  const handleSaveRates = async () => {
-    setSavingRates(true);
-    setRatesError('');
-    try {
-      const updated = await exchangeRatesApi.bulkUpsert(rates);
-      setRates(updated);
-    } catch (err) {
-      setRatesError(getErrorMessage(err));
-    } finally {
-      setSavingRates(false);
-    }
-  };
-
-  const handleAddCurrency = async () => {
-    if (!newCurrencyCode.trim()) return;
-    const code = newCurrencyCode.trim().toUpperCase();
-    setSavingRates(true);
-    setRatesError('');
-    try {
-      const rate = newCurrencyRate.trim() ? Number(newCurrencyRate) : 1;
-      const created = await exchangeRatesApi.create({ currency_code: code, rate_to_cop: rate });
-      setRates((prev) => [...prev, created]);
-      setNewCurrencyCode('');
-      setNewCurrencyRate('');
-    } catch (err) {
-      setRatesError(getErrorMessage(err));
-    } finally {
-      setSavingRates(false);
-    }
-  };
-
-  const handleDeleteCurrency = async (code: string) => {
-    if (code === BASE_CURRENCY || code === settings?.currency) return;
-    setSavingRates(true);
-    setRatesError('');
-    try {
-      await exchangeRatesApi.delete(code);
-      setRates((prev) => prev.filter((r) => r.currency_code !== code));
-    } catch (err) {
-      setRatesError(getErrorMessage(err));
-    } finally {
-      setSavingRates(false);
-    }
-  };
-
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow="Account Settings"
-        title="Profile & preferences"
-        description="Currency, categories and the AI assistant that reads your ledger."
-      />
-
-      {error && <p className="rounded-md bg-error/10 px-3 py-2 text-sm text-error">{error}</p>}
-
-      <div className="grid gap-6 xl:grid-cols-2">
-        <CardBox>
-          <div className="p-6">
-            <h3 className="font-display text-xl font-normal text-foreground">Currency & Categories</h3>
-            <form onSubmit={handleSave} className="mt-4 space-y-4">
+        {/* Vocabulary */}
+        <div className="grid gap-11 border-t rule-strong pt-6 lg:grid-cols-2">
+          <div>
+            <div className="fig mb-4 text-[19px] font-medium">{t('profile.vocabulary')}</div>
+            <div className="flex flex-col gap-4">
               <div>
-                <Label htmlFor="currency">Currency Code</Label>
+                <Label htmlFor="p-type">{t('profile.addType')}</Label>
                 <Input
-                  id="currency"
+                  id="p-type"
                   className="mt-2"
-                  value={currency}
-                  onChange={(e) => setCurrency(e.target.value.toUpperCase())}
-                  required
-                  maxLength={3}
+                  value={newType}
+                  onChange={(e) => setNewType(e.target.value)}
+                  placeholder={t('profile.addTypePlaceholder')}
                 />
               </div>
-              <div className="rounded-sm border border-border p-4">
-                <p className="text-sm font-medium text-foreground">Add Transaction Type</p>
-                <div className="mt-3 flex gap-2">
+              <div>
+                <Label htmlFor="p-cat">{t('profile.addCategory')}</Label>
+                <div className="mt-2 flex flex-wrap gap-3">
                   <Input
-                    value={newType}
-                    onChange={(e) => setNewType(e.target.value)}
-                    placeholder="e.g. Bonus"
-                  />
-                </div>
-              </div>
-              <div className="rounded-sm border border-border p-4">
-                <p className="text-sm font-medium text-foreground">Add Category</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Input
+                    id="p-cat"
+                    className="min-w-[180px] flex-grow"
                     value={newCategory}
                     onChange={(e) => setNewCategory(e.target.value)}
-                    placeholder="e.g. Subscriptions"
+                    placeholder={t('profile.addCategoryPlaceholder')}
                   />
                   <Select value={newCategoryType} onValueChange={setNewCategoryType}>
-                    <SelectTrigger className="w-32">
+                    <SelectTrigger className="w-36">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="expense">Expense</SelectItem>
-                      <SelectItem value="income">Income</SelectItem>
+                      <SelectItem value="expense">{t('profile.expense')}</SelectItem>
+                      <SelectItem value="income">{t('profile.income')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
-              <Button type="submit" disabled={saving}>
-                {saving ? 'Saving…' : 'Save Changes'}
-              </Button>
-            </form>
-          </div>
-        </CardBox>
-
-        <CardBox>
-          <div className="p-6">
-            <h3 className="font-display text-xl font-normal text-foreground">AI Assistant Settings</h3>
-            <div className="mt-4">
-              <SettingsPanel />
             </div>
           </div>
-        </CardBox>
-      </div>
 
-      {settings && (
-        <CardBox>
-          <div className="p-6">
-            <h3 className="font-display text-xl font-normal text-foreground">Your Categories</h3>
-            <div className="mt-3 flex flex-wrap gap-2">
+          <div className="lg:border-l lg:border-border lg:pl-11">
+            <div className="eyebrow-sm mb-3">{t('profile.categories')}</div>
+            <div className="flex flex-wrap gap-2">
               {settings.categories.map((cat) => (
                 <Badge key={`${cat.id ?? 'builtin'}-${cat.type}-${cat.name}`} variant="gray">
                   {cat.name}
-                  <span className="ml-1 text-xs opacity-70">({cat.type})</span>
+                  <span className="ml-1 text-xs opacity-70">
+                    ({t(cat.type === 'income' ? 'profile.income' : 'profile.expense')})
+                  </span>
                 </Badge>
               ))}
             </div>
-            <h3 className="mt-5 font-display text-xl font-normal text-foreground">Transaction Types</h3>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="eyebrow-sm mb-3 mt-5">{t('profile.types')}</div>
+            <div className="flex flex-wrap gap-2">
               {settings.types.map((t) => (
                 <Badge key={`${t.id ?? 'builtin'}-${t.name}`} variant="gray">
                   {t.name}
@@ -430,110 +257,26 @@ export default function ProfileSettings() {
               ))}
             </div>
           </div>
-        </CardBox>
-      )}
-
-      <CardBox>
-        <div className="p-6">
-          <div className="flex items-center justify-between">
-            <h3 className="font-display text-xl font-normal text-foreground">Exchange Rates</h3>
-            <p className="text-sm text-muted-foreground">
-              Base currency: <strong>{BASE_CURRENCY}</strong> (COP)
-            </p>
-          </div>
-          {ratesError && (
-            <p className="mt-3 rounded-md bg-error/10 px-3 py-2 text-sm text-error">{ratesError}</p>
-          )}
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr>
-                  <th className="text-left font-medium text-muted-foreground">Currency</th>
-                  <th className="text-left font-medium text-muted-foreground">
-                    Rate to 1 {BASE_CURRENCY}
-                  </th>
-                  <th className="text-right font-medium text-muted-foreground">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rates.map((r, i) => (
-                  <tr key={r.currency_code} className="border-b border-border">
-                    <td className="py-2">
-                      <Input
-                        className="w-20 font-mono text-xs"
-                        value={r.currency_code}
-                        onChange={(e) =>
-                          handleRateChange(i, 'currency_code', e.target.value.toUpperCase())
-                        }
-                        maxLength={3}
-                      />
-                    </td>
-                    <td className="py-2">
-                      <Input
-                        className="w-32 font-mono text-xs"
-                        type="number"
-                        step="0.0001"
-                        min={0}
-                        value={r.rate_to_cop}
-                        onChange={(e) => handleRateChange(i, 'rate_to_cop', e.target.value)}
-                      />
-                    </td>
-                    <td className="py-2 text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteCurrency(r.currency_code)}
-                        disabled={r.currency_code === BASE_CURRENCY || r.currency_code === settings?.currency}
-                      >
-                        <Icon icon="solar:trash-bin-minimal-linear" width={16} height={16} />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="mt-4 flex flex-wrap items-end gap-3">
-            <div>
-              <Label htmlFor="new-currency-code">New Currency</Label>
-              <Input
-                id="new-currency-code"
-                className="mt-1 w-20 font-mono text-xs"
-                value={newCurrencyCode}
-                onChange={(e) => setNewCurrencyCode(e.target.value.toUpperCase())}
-                maxLength={3}
-                placeholder="USD"
-              />
-            </div>
-            <div>
-              <Label htmlFor="new-currency-rate">Rate to {BASE_CURRENCY}</Label>
-              <Input
-                id="new-currency-rate"
-                className="mt-1 w-32 font-mono text-xs"
-                type="number"
-                step="0.0001"
-                min={0}
-                value={newCurrencyRate}
-                onChange={(e) => setNewCurrencyRate(e.target.value)}
-                placeholder="0.0001"
-              />
-            </div>
-            <Button type="button" variant="outline" size="sm" onClick={handleAddCurrency} disabled={!newCurrencyCode.trim() || savingRates}>
-              <Icon icon="solar:add-linear" width={16} height={16} className="mr-1" />
-              Add
-            </Button>
-          </div>
-          <div className="mt-4 flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={fetchRates} disabled={savingRates}>
-              <Icon icon="solar:refresh-linear" width={16} height={16} className="mr-1" />
-              Reload
-            </Button>
-            <Button size="sm" onClick={handleSaveRates} disabled={savingRates || rates.length === 0}>
-              {savingRates ? 'Saving…' : 'Save Rates'}
-            </Button>
-          </div>
         </div>
-      </CardBox>
+
+        <div className="flex items-center gap-4">
+          <Button type="submit" disabled={saving}>
+            {saving ? t('common.saving') : t('common.saveChanges')}
+          </Button>
+          {saved && <span className="text-sm text-success">{t('common.saved')}</span>}
+        </div>
+      </form>
+
+      <TwoFactorSection status={settings.two_factor} onChanged={onTwoFactorChanged} />
+
+      {/* AI assistant */}
+      <section className="border-t rule-strong pt-6">
+        <div className="fig mb-1.5 text-[19px] font-medium">{t('profile.aiAssistant')}</div>
+        <p className="m-0 mb-5 max-w-[72ch] text-sm leading-relaxed text-inksoft">
+          {t('profile.aiNote')}
+        </p>
+        <SettingsPanel />
+      </section>
     </div>
   );
 }

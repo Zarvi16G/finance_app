@@ -15,7 +15,7 @@ from .services.snapshot_service import compute_monthly_snapshot
 @receiver(post_save, sender=CustomType)
 def sync_custom_type_to_choice(sender, instance, created, **kwargs):
     # Types are plain labels with no extra attributes; only the name can vary.
-    # The mirrored Choice belongs to the same owner (unique per owner+name+type).
+    # The mirrored Choice inherits the owner so it stays private to that user.
     if created:
         Choice.objects.get_or_create(
             owner=instance.owner,
@@ -29,7 +29,7 @@ def sync_custom_type_to_choice(sender, instance, created, **kwargs):
     else:
         Choice.objects.update_or_create(
             custom_type=instance,
-            defaults=dict(name=instance.name, owner=instance.owner)
+            defaults=dict(name=instance.name)
         )
 
 
@@ -59,7 +59,6 @@ def sync_custom_category_to_choice(sender, instance, created, **kwargs):
             defaults=dict(
                 name=instance.name,
                 transaction_type=instance.transaction_type,
-                owner=instance.owner,
             )
         )
 
@@ -75,13 +74,15 @@ def refresh_snapshot_on_record_save(sender, instance, **kwargs):
 
     The analytics endpoint serves snapshot data first, so every mutation of a
     financial record (including category/type edits confirmed during statement
-    review) must recompute its month snapshot.
+    review) must recompute its month snapshot — for that record's owner only.
     """
-    if instance.owner_id:
-        compute_monthly_snapshot(instance.owner, instance.date)
+    if instance.owner_id is None:
+        return  # Legacy row with no owner: nothing to recompute for.
+    compute_monthly_snapshot(instance.date, instance.owner)
 
 
 @receiver(post_delete, sender=FinancialRecord)
 def refresh_snapshot_on_record_delete(sender, instance, **kwargs):
-    if instance.owner_id:
-        compute_monthly_snapshot(instance.owner, instance.date)
+    if instance.owner_id is None:
+        return
+    compute_monthly_snapshot(instance.date, instance.owner)

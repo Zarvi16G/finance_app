@@ -1,8 +1,4 @@
-"""AI configuration: stored API keys (encrypted), provider and model selection.
-
-Every accessor is scoped to a user (Phase 0b): each account has its own
-``UserSetting`` row, so provider keys are never shared between users.
-"""
+"""AI configuration: stored API keys (encrypted), provider and model selection."""
 from ...crypto import encrypt_text, decrypt_text, mask_secret
 from ...models import UserSetting
 
@@ -22,6 +18,11 @@ PROVIDER_LABELS = {
 
 
 def get_setting(user) -> UserSetting:
+    """Return the settings row for one user, creating it on first use.
+
+    Every caller must pass the request's user: these rows hold that person's
+    encrypted provider keys, and they used to live in a single shared row.
+    """
     setting, _ = UserSetting.objects.get_or_create(owner=user)
     return setting
 

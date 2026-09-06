@@ -1,21 +1,25 @@
-/* tailwind-sidebar package override styles — strip the packaged chrome,
-   keep the paper. */
+/* tailwind-sidebar package override styles — strip the packaged chrome so the
+   navigation reads as the design's plain list of words. */
 
 [data-slot='sidebar-menu-button'] {
-  border-radius: 2px;
+  border-radius: 0;
   box-shadow: none;
+  color: var(--bodytext);
 }
 
 [data-slot='sidebar-menu-button']:hover {
-  background-color: var(--lightprimary) !important;
+  background-color: transparent !important;
   color: var(--sidebar-foreground) !important;
 }
 
-/* Active page: a green balance rule on the left, like a ticked ledger line. */
+/* The active page is marked by a rule and the weight of the word, not by a
+   filled block: a solid pill would be the heaviest element on a page whose
+   whole point is that the figures carry the weight. */
 [data-slot='sidebar-menu-button'][data-active='true'] {
-  background-color: var(--lightprimary) !important;
-  color: var(--sidebar-primary) !important;
-  box-shadow: inset 2px 0 0 var(--success);
+  background-color: transparent !important;
+  color: var(--sidebar-foreground) !important;
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--sidebar-primary);
 }
 
 [data-slot='badge'] {

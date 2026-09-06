@@ -1,57 +1,89 @@
-"""Monthly financial snapshot computation."""
+"""Monthly financial snapshot computation.
+
+Every total here is expressed in the owner's base currency. Amounts are stored
+in whatever currency they happened in, so the sums go through
+`currency_service.sum_in` rather than a plain SQL Sum, which would happily add
+pesos to dollars.
+"""
 from django.db.models import Sum, Avg, Count
 
-from ..models import FinancialRecord, FinancialSnapshot, Debt
-from ..services.currency import convert_to_cop
+from ..models import FinancialRecord, FinancialSnapshot, Debt, UserSetting
+from . import currency_service, patrimony_service
 
 ESSENTIAL_CATEGORIES = ['Rent & Housing', 'Utilities', 'Food & Dining', 'Healthcare', 'Transportation']
 
 
-def compute_monthly_snapshot(owner, date):
-    """Compute and store a complete monthly financial snapshot for one user."""
-    snapshot, _ = FinancialSnapshot.objects.get_or_create(owner=owner, date=date.replace(day=1))
-
-    records = FinancialRecord.objects.filter(
-        owner=owner, date__year=date.year, date__month=date.month
+def base_currency_for(user) -> str:
+    """The currency this user reads their totals in."""
+    setting = UserSetting.objects.filter(owner=user).only('currency').first()
+    return currency_service.normalize(
+        setting.currency if setting and setting.currency else currency_service.DEFAULT_BASE
     )
 
-    total_income = float(records.filter(type='income').aggregate(Sum('amount'))['amount__sum'] or 0)
-    total_expenses = float(records.filter(type='expense').aggregate(Sum('amount'))['amount__sum'] or 0)
+
+def compute_monthly_snapshot(date, user):
+    """Compute and store one user's monthly financial snapshot."""
+    snapshot, _ = FinancialSnapshot.objects.get_or_create(
+        owner=user, date=date.replace(day=1)
+    )
+
+    base = base_currency_for(user)
+    records = FinancialRecord.objects.filter(
+        owner=user, date__year=date.year, date__month=date.month
+    )
+
+    income_total = currency_service.sum_in(records.filter(type='income'), base)
+    expense_total = currency_service.sum_in(records.filter(type='expense'), base)
+    total_income = float(income_total)
+    total_expenses = float(expense_total)
     net_cash_flow = total_income - total_expenses
     savings_rate = (net_cash_flow / total_income * 100) if total_income > 0 else 0
 
-    # Expense category breakdown
-    expenses = records.filter(type='expense').values('category').annotate(
-        total=Sum('amount'),
-        avg=Avg('amount'),
-        count=Count('id')
-    ).order_by('-total')
-    total_expense_amount = sum(float(e['total']) for e in expenses)
+    # Expense category breakdown, each category totalled in the base currency
+    expense_records = records.filter(type='expense')
+    counts = {
+        row['category']: row['count']
+        for row in expense_records.values('category').annotate(count=Count('id'))
+    }
+    category_totals = {
+        category: float(currency_service.sum_in(
+            expense_records.filter(category=category), base
+        ))
+        for category in counts
+    }
+    total_expense_amount = sum(category_totals.values())
     expenses_per_category = {}
-    for e in expenses:
-        cat_total = float(e['total'])
-        expenses_per_category[e['category']] = {
+    for category, cat_total in sorted(category_totals.items(), key=lambda item: -item[1]):
+        count = counts[category]
+        expenses_per_category[category] = {
             'total': cat_total,
-            'average': float(e['avg']),
-            'count': e['count'],
+            'average': round(cat_total / count, 2) if count else 0,
+            'count': count,
             'percentage': round(cat_total / total_expense_amount * 100, 2) if total_expense_amount > 0 else 0
         }
 
-    # Debts — convert every balance to COP so the aggregate is meaningful
-    # when currencies differ.
-    debts = Debt.objects.filter(owner=owner, status='active')
-    total_liabilities = sum(
-        convert_to_cop(float(d.current_balance), d.currency or 'COP') for d in debts
-    )
-    total_min_payment = sum(
-        convert_to_cop(float(d.minimum_payment), d.currency or 'COP') for d in debts
-    )
+    # Debts
+    debts = Debt.objects.filter(owner=user, status='active')
+    min_payment_total = currency_service.sum_in(debts, base, field='minimum_payment')
+    total_min_payment = float(min_payment_total)
+
+    # Patrimony: assets minus everything still owed (not just active debts).
+    assets_total, liabilities_total, net_worth = patrimony_service.net_worth_for(user, base)
+    total_assets = float(assets_total)
+    total_liabilities = float(liabilities_total)
+
+    # Wealthness: how long the liquid assets would cover essential spending.
+    # Computed here so the metric can be charted month by month, not just for
+    # today. Deferred import — wealthness_service reads snapshots.
+    from .wealthness_service import emergency_fund
+    cover = emergency_fund(user, base, today=date)
 
     # Liquidity ratios
     current_ratio = (total_income / total_min_payment) if total_min_payment > 0 else None
-    essential_expenses = float(records.filter(
-        type='expense', category__in=ESSENTIAL_CATEGORIES
-    ).aggregate(Sum('amount'))['amount__sum'] or 0)
+    essential_total = currency_service.sum_in(
+        records.filter(type='expense', category__in=ESSENTIAL_CATEGORIES), base
+    )
+    essential_expenses = float(essential_total)
     quick_ratio = (total_income - essential_expenses) / total_min_payment if total_min_payment > 0 else None
     cash_ratio = current_ratio
 
@@ -61,17 +93,28 @@ def compute_monthly_snapshot(owner, date):
 
     # Solvency ratios
     debt_to_income = (total_min_payment / total_income * 100) if total_income > 0 else 0
+    # Now computable: the asset registry exists.
+    debt_to_asset = (total_liabilities / total_assets * 100) if total_assets > 0 else None
 
     # Growth (YoY)
     prev_year = date.year - 1
     prev_records = FinancialRecord.objects.filter(
-        owner=owner, date__year=prev_year, date__month=date.month
+        owner=user, date__year=prev_year, date__month=date.month
     )
-    prev_income = float(prev_records.filter(type='income').aggregate(Sum('amount'))['amount__sum'] or 0)
-    prev_expenses = float(prev_records.filter(type='expense').aggregate(Sum('amount'))['amount__sum'] or 0)
+    prev_income = float(currency_service.sum_in(prev_records.filter(type='income'), base))
+    prev_expenses = float(currency_service.sum_in(prev_records.filter(type='expense'), base))
     income_growth_yoy = ((total_income - prev_income) / prev_income * 100) if prev_income > 0 else 0
     expense_growth_yoy = ((total_expenses - prev_expenses) / prev_expenses * 100) if prev_expenses > 0 else 0
     net_worth_growth = income_growth_yoy - expense_growth_yoy
+
+    # Whether every amount that went into this month could be expressed in
+    # the base currency. Recorded because the snapshot outlives the request.
+    snapshot.conversion_complete = all(
+        total.complete for total in (
+            income_total, expense_total, min_payment_total, essential_total,
+            assets_total, liabilities_total,
+        )
+    )
 
     # Update snapshot
     snapshot.total_income = total_income
@@ -84,12 +127,16 @@ def compute_monthly_snapshot(owner, date):
     snapshot.net_profit_margin = round(net_profit_margin, 2)
     snapshot.expense_ratio = round(expense_ratio, 2)
     snapshot.debt_to_income = round(debt_to_income, 2)
+    snapshot.debt_to_asset = round(debt_to_asset, 2) if debt_to_asset is not None else None
     snapshot.income_growth_yoy = round(income_growth_yoy, 2)
     snapshot.expense_growth_yoy = round(expense_growth_yoy, 2)
     snapshot.net_worth_growth = round(net_worth_growth, 2)
     snapshot.expenses_per_category = expenses_per_category
     snapshot.total_liabilities = total_liabilities
-    snapshot.net_worth = 0  # Would need asset tracking
+    snapshot.total_assets = total_assets
+    snapshot.net_worth = float(net_worth)
+    snapshot.liquid_assets = cover['liquid_assets']
+    snapshot.emergency_fund_months = cover['months_covered']
     snapshot.save()
 
     return snapshot

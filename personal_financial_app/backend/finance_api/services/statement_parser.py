@@ -9,17 +9,16 @@ from django.utils import timezone
 
 from .categorization import suggest_category
 from .statement_detection import detect_statement_info
-from ..models.snapshots import DailyUserSnapshot
 
 
-def process_statement(statement, password=None, user=None):
+def process_statement(statement, password=None):
     """Extract transactions from a PDF and persist them for review.
 
     Marks the statement as failed/review_pending. Designed to be called
     without raising; errors are stored on the statement record.
     """
     try:
-        transactions, detected = extract_transactions_from_pdf(statement.file.path, password, user)
+        transactions, detected = extract_transactions_from_pdf(statement.file.path, password)
     except Exception as e:
         statement.status = 'failed'
         statement.error_message = f'Failed to extract transactions: {str(e)}'
@@ -45,7 +44,7 @@ def process_statement(statement, password=None, user=None):
     return transactions
 
 
-def extract_transactions_from_pdf(pdf_path, password=None, user=None):
+def extract_transactions_from_pdf(pdf_path, password=None):
     """Extract transaction data from PDF using pdfplumber.
 
     Returns (transactions, detected_info) where detected_info comes from
@@ -68,12 +67,12 @@ def extract_transactions_from_pdf(pdf_path, password=None, user=None):
                 # Try to extract table data first
                 tables = page.extract_tables()
                 for table in tables:
-                    extracted = parse_transaction_table(table, user=user)
+                    extracted = parse_transaction_table(table)
                     transactions.extend(extracted)
 
                 # If no tables found, try text parsing
                 if not tables:
-                    extracted = parse_transaction_text(text, user=user)
+                    extracted = parse_transaction_text(text)
                     transactions.extend(extracted)
     except PdfminerException as e:
         error_str = str(e)
@@ -97,7 +96,7 @@ def extract_transactions_from_pdf(pdf_path, password=None, user=None):
     return deduplicate_transactions(transactions), detected
 
 
-def parse_transaction_table(table, user=None):
+def parse_transaction_table(table):
     """Parse transactions from extracted table."""
     transactions = []
 
@@ -138,7 +137,7 @@ def parse_transaction_table(table, user=None):
 
         try:
             txn = parse_table_row(row, date_idx, desc_idx, amount_idx,
-                                 debit_idx, credit_idx, balance_idx, user=user)
+                                 debit_idx, credit_idx, balance_idx)
             if txn:
                 transactions.append(txn)
         except Exception:
@@ -154,7 +153,7 @@ def find_column(headers, keywords):
     return None
 
 
-def parse_table_row(row, date_idx, desc_idx, amount_idx, debit_idx, credit_idx, balance_idx, user=None):
+def parse_table_row(row, date_idx, desc_idx, amount_idx, debit_idx, credit_idx, balance_idx):
     """Parse a single table row into transaction data."""
     date_str = row[date_idx] if date_idx is not None else None
     desc = row[desc_idx] if desc_idx is not None else None
@@ -193,19 +192,6 @@ def parse_table_row(row, date_idx, desc_idx, amount_idx, debit_idx, credit_idx, 
         txn_type = 'income' if amount > 0 else 'expense'
         amount = abs(amount)
 
-    # Calculate usd_amount using user's active DailyUserSnapshot rates
-    usd_amount = Decimal('0')
-    if user is not None:
-        try:
-            snapshot = DailyUserSnapshot.objects.filter(
-                user=user,
-                snapshot_date__lte=timezone.now().date()
-            ).latest('snapshot_date')
-            # rates are USD-relative: rate["COP"] = how many COP per 1 USD
-            rates = snapshot.rates
-        except DailyUserSnapshot.DoesNotExist:
-            rates = {}
-
     return {
         'raw_description': str(desc).strip(),
         'cleaned_description': clean_description(str(desc).strip()),
@@ -214,12 +200,11 @@ def parse_table_row(row, date_idx, desc_idx, amount_idx, debit_idx, credit_idx, 
         'transaction_type': txn_type,
         'suggested_category': suggest_category(str(desc).strip()),
         'confidence_score': 0.5,
-        'needs_review': True,
-        'usd_amount': usd_amount,
+        'needs_review': True
     }
 
 
-def parse_transaction_text(text, user=None):
+def parse_transaction_text(text):
     """Parse transactions from raw text (fallback)."""
     transactions = []
     lines = text.split('\n')
@@ -257,17 +242,6 @@ def parse_transaction_text(text, user=None):
 
                 if date and amount != 0:
                     txn_type = 'income' if amount > 0 else 'expense'
-                    usd_amount = Decimal('0')
-                    if user is not None:
-                        try:
-                            snapshot = DailyUserSnapshot.objects.filter(
-                                user=user,
-                                snapshot_date__lte=timezone.now().date()
-                            ).latest('snapshot_date')
-                            rates = snapshot.rates
-                        except DailyUserSnapshot.DoesNotExist:
-                            rates = {}
-
                     transactions.append({
                         'raw_description': desc.strip(),
                         'cleaned_description': clean_description(desc.strip()),
@@ -276,8 +250,7 @@ def parse_transaction_text(text, user=None):
                         'transaction_type': txn_type,
                         'suggested_category': suggest_category(desc.strip()),
                         'confidence_score': 0.4,
-                        'needs_review': True,
-                        'usd_amount': usd_amount,
+                        'needs_review': True
                     })
                     break
 

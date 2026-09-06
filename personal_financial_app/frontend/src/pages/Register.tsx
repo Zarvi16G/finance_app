@@ -1,11 +1,13 @@
 /**
- * Registration page (public-only route). Creates the account
- * via AuthContext.register and redirects once logged in.
+ * Registration — creates the account and signs in immediately.
+ *
+ * A new account never has a second factor, so this path always ends in a
+ * token pair; the challenge branch belongs to Login only.
  */
 import { useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
-import CardBox from '../components/shared/CardBox';
-import LedgerMark from '../components/shared/LedgerMark';
+import AuthLayout from '../layouts/AuthLayout';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -13,6 +15,7 @@ import { useAuth } from '../auth/AuthContext';
 import { getErrorMessage } from '../api/client';
 
 export default function Register() {
+  const { t } = useTranslation();
   const { register } = useAuth();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
@@ -26,7 +29,7 @@ export default function Register() {
     e.preventDefault();
     setError('');
     if (password !== confirm) {
-      setError('Passwords do not match.');
+      setError(t('auth.passwordsDoNotMatch'));
       return;
     }
     setSubmitting(true);
@@ -41,108 +44,86 @@ export default function Register() {
   };
 
   return (
-    <div className="ledger-ruled relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-10">
-      <div className="w-full max-w-md">
-        <CardBox className="border-border px-8 py-8 shadow-lg">
-          <div className="flex items-center gap-3 border-b border-border pb-5">
-            <LedgerMark className="h-9 w-9 text-foreground" />
-            <div>
-              <p className="font-mono text-xs font-semibold uppercase tracking-[0.22em] text-foreground">
-                Ledgerline
-              </p>
-              <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground">
-                Personal financial ledger
-              </p>
-            </div>
-          </div>
+    <AuthLayout
+      headline={t('auth.registerHeadline')}
+      blurb={t('auth.registerBlurb')}
+      footnote={t('auth.registerFootnote')}
+    >
+      <p className="letterhead mb-3.5">{t('auth.createAccount')}</p>
+      <h1 className="fig m-0 text-[32px] font-medium">{t('auth.registerTitle')}</h1>
+      <p className="m-0 mt-3 text-[15px] leading-relaxed text-inksoft">
+        {t('auth.registerSubtitle')}
+      </p>
 
-          <div className="pt-6">
-            <p className="letterhead">Account Holder · New Account</p>
-            <h1 className="mt-1 font-display text-3xl font-normal text-foreground">
-              Open a new ledger
-            </h1>
-            <p className="mt-1.5 text-sm text-muted-foreground">
-              One account, one ledger. No fees, no banks attached — the records are yours.
-            </p>
-          </div>
+      <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
+        <div>
+          <Label htmlFor="username">{t('auth.username')}</Label>
+          <Input
+            id="username"
+            type="text"
+            className="mt-2"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+            autoComplete="username"
+          />
+        </div>
+        <div>
+          <Label htmlFor="email">
+            {t('auth.email')}{' '}
+            <span className="font-normal text-muted-foreground">{t('auth.emailOptional')}</span>
+          </Label>
+          <Input
+            id="email"
+            type="email"
+            className="mt-2"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+          />
+        </div>
+        <div>
+          <Label htmlFor="regpwd">
+            {t('auth.password')}{' '}
+            <span className="font-normal text-muted-foreground">{t('auth.passwordHint')}</span>
+          </Label>
+          <Input
+            id="regpwd"
+            type="password"
+            className="mt-2"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            autoComplete="new-password"
+            minLength={8}
+          />
+        </div>
+        <div>
+          <Label htmlFor="confirmpwd">{t('auth.repeatPassword')}</Label>
+          <Input
+            id="confirmpwd"
+            type="password"
+            className="mt-2"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            required
+            autoComplete="new-password"
+          />
+        </div>
 
-          <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
-            <div>
-              <Label htmlFor="username" className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                Username
-              </Label>
-              <Input
-                id="username"
-                type="text"
-                className="mt-1 rounded-none border-x-0 border-t-0 bg-transparent px-0 focus-visible:border-b-2"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                autoComplete="username"
-              />
-            </div>
-            <div>
-              <Label htmlFor="email" className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                Email <span className="normal-case tracking-normal text-muted-foreground/70">(optional)</span>
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                className="mt-1 rounded-none border-x-0 border-t-0 bg-transparent px-0 focus-visible:border-b-2"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoComplete="email"
-              />
-            </div>
-            <div>
-              <Label htmlFor="regpwd" className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                Password <span className="normal-case tracking-normal text-muted-foreground/70">(8+ characters)</span>
-              </Label>
-              <Input
-                id="regpwd"
-                type="password"
-                className="mt-1 rounded-none border-x-0 border-t-0 bg-transparent px-0 focus-visible:border-b-2"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="new-password"
-                minLength={8}
-              />
-            </div>
-            <div>
-              <Label htmlFor="confirmpwd" className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                Confirm Password
-              </Label>
-              <Input
-                id="confirmpwd"
-                type="password"
-                className="mt-1 rounded-none border-x-0 border-t-0 bg-transparent px-0 focus-visible:border-b-2"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                required
-                autoComplete="new-password"
-              />
-            </div>
+        {error && <p className="bg-lighterror px-3 py-2 text-sm text-error">{error}</p>}
 
-            {error && (
-              <p className="rounded-sm bg-error/10 px-3 py-2 font-mono text-xs text-error">
-                {error}
-              </p>
-            )}
+        <Button type="submit" className="w-full py-3.5 text-[15px]" disabled={submitting}>
+          {submitting ? t('auth.creatingAccount') : t('auth.createAccount')}
+        </Button>
+      </form>
 
-            <Button type="submit" className="w-full font-mono text-[12px] uppercase tracking-[0.14em]" disabled={submitting}>
-              {submitting ? 'Opening account…' : 'Create account'}
-            </Button>
-          </form>
-
-          <div className="mt-6 flex items-center justify-between border-t border-border pt-4">
-            <p className="text-sm text-muted-foreground">Already have an account?</p>
-            <Button asChild variant="ghost" size="sm" className="font-mono text-[11px] uppercase tracking-[0.12em]">
-              <Link to="/login">Sign in</Link>
-            </Button>
-          </div>
-        </CardBox>
+      <div className="mt-7 flex items-center justify-between border-t border-border pt-5">
+        <p className="text-sm text-muted-foreground">{t('auth.haveAccount')}</p>
+        <Link to="/login" className="text-sm font-semibold text-primary hover:underline">
+          {t('auth.signIn')}
+        </Link>
       </div>
-    </div>
+    </AuthLayout>
   );
 }

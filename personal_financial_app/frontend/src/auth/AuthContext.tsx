@@ -17,12 +17,19 @@ import {
 } from 'react';
 import { authApi } from '../api/auth';
 import { tokenStorage } from './tokenStorage';
-import type { User } from '../types';
+import { isMfaChallenge, type LoginResult, type MfaChallenge, type User } from '../types';
 
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
-  login: (username: string, password: string) => Promise<User>;
+  /**
+   * The password step. Resolves to the signed-in user, or to a challenge when
+   * the account has a second factor — in which case no tokens are stored and
+   * nothing about the session has changed yet.
+   */
+  login: (username: string, password: string) => Promise<User | MfaChallenge>;
+  /** The second step: spends the challenge token for a real session. */
+  completeTwoFactor: (mfaToken: string, code: string) => Promise<User>;
   register: (username: string, password: string, email?: string) => Promise<User>;
   logout: () => Promise<void>;
 }
@@ -61,12 +68,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('auth:unauthorized', onUnauthorized);
   }, []);
 
-  const login = useCallback(async (username: string, password: string) => {
-    const res = await authApi.login(username, password);
+  /** Turns a token pair into a live session. Shared by both login paths. */
+  const adoptSession = useCallback((res: Exclude<LoginResult, MfaChallenge>) => {
     tokenStorage.setTokens(res.access, res.refresh);
     setUser(res.user);
     return res.user;
   }, []);
+
+  const login = useCallback(
+    async (username: string, password: string) => {
+      const res = await authApi.login(username, password);
+      // A challenge is not a session: store nothing, sign nobody in, and hand
+      // it back for the caller to route to the second step.
+      if (isMfaChallenge(res)) return res;
+      return adoptSession(res);
+    },
+    [adoptSession],
+  );
+
+  const completeTwoFactor = useCallback(
+    async (mfaToken: string, code: string) => {
+      const res = await authApi.verifyTwoFactor(mfaToken, code);
+      return adoptSession(res);
+    },
+    [adoptSession],
+  );
 
   const register = useCallback(async (username: string, password: string, email?: string) => {
     const res = await authApi.register(username, password, email);
@@ -88,8 +114,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, loading, login, register, logout }),
-    [user, loading, login, register, logout],
+    () => ({ user, loading, login, completeTwoFactor, register, logout }),
+    [user, loading, login, completeTwoFactor, register, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

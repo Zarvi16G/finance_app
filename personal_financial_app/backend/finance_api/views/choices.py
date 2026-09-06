@@ -1,20 +1,10 @@
-"""API views for choice/dropdown management (categories and types).
-
-Every list mixes the caller's own custom vocabulary with the shared built-in
-choices (``builtin=True``, ``owner=NULL``); every mutation is restricted to the
-caller's own rows, so one user can neither see nor edit another's vocabulary.
-"""
-from django.db.models import Q
+"""API views for choice/dropdown management (categories and types)."""
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiTypes
 
 from ..models import Choice, CustomCategory, CustomType
-
-
-def _visible(qs, user):
-    return qs.filter(Q(builtin=True) | Q(owner=user))
 
 
 @extend_schema_view(
@@ -29,7 +19,7 @@ def _visible(qs, user):
 )
 class ChoiceView(APIView):
     def get(self, request):
-        choices = _visible(Choice.objects, request.user).order_by('choice_type', 'sort_order', 'name')
+        choices = Choice.objects.visible_to(request.user).order_by('choice_type', 'sort_order', 'name')
         return Response([
             {
                 'id': c.id,
@@ -43,16 +33,18 @@ class ChoiceView(APIView):
 
     def delete(self, request, pk=None):
         try:
-            choice = Choice.objects.get(id=pk, owner=request.user)
+            # Only the user's own choices are deletable; built-ins are shared
+            # and other users' choices must not even be visible here.
+            choice = Choice.objects.owned_by(request.user).get(id=pk)
+            if choice.custom_category:
+                choice.custom_category.delete()
+            elif choice.custom_type:
+                choice.custom_type.delete()
+            else:
+                return Response({'error': 'Cannot delete built-in choice'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(status=status.HTTP_204_NO_CONTENT)
         except Choice.DoesNotExist:
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
-        if choice.custom_category:
-            choice.custom_category.delete()
-        elif choice.custom_type:
-            choice.custom_type.delete()
-        else:
-            return Response({'error': 'Cannot delete built-in choice'}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @extend_schema_view(
@@ -76,7 +68,9 @@ class ChoiceView(APIView):
 )
 class CustomCategoryView(APIView):
     def get(self, request):
-        choices = _visible(Choice.objects.filter(choice_type=Choice.CATEGORY), request.user).order_by('sort_order', 'name')
+        choices = Choice.objects.visible_to(request.user).filter(
+            choice_type=Choice.CATEGORY
+        ).order_by('sort_order', 'name')
         return Response([
             {'id': c.custom_category_id, 'name': c.name, 'type': c.transaction_type, 'builtin': c.builtin}
             for c in choices
@@ -88,13 +82,14 @@ class CustomCategoryView(APIView):
         if not name:
             return Response({'error': 'Name is required'}, status=status.HTTP_400_BAD_REQUEST)
         obj, created = CustomCategory.objects.get_or_create(
-            owner=request.user, name=name, defaults={'transaction_type': ttype}
+            owner=request.user, name=name,
+            defaults={'transaction_type': ttype},
         )
         return Response({'id': obj.id, 'name': obj.name, 'type': obj.transaction_type, 'created': created})
 
     def put(self, request, pk=None):
         try:
-            obj = CustomCategory.objects.get(id=pk, owner=request.user)
+            obj = CustomCategory.objects.owned_by(request.user).get(id=pk)
         except CustomCategory.DoesNotExist:
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
         name = request.data.get('name', '').strip()
@@ -108,11 +103,11 @@ class CustomCategoryView(APIView):
 
     def delete(self, request, pk=None):
         try:
-            obj = CustomCategory.objects.get(id=pk, owner=request.user)
+            obj = CustomCategory.objects.owned_by(request.user).get(id=pk)
+            obj.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
         except CustomCategory.DoesNotExist:
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
-        obj.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @extend_schema_view(
@@ -135,7 +130,9 @@ class CustomCategoryView(APIView):
 )
 class CustomTypeView(APIView):
     def get(self, request):
-        choices = _visible(Choice.objects.filter(choice_type=Choice.TYPE), request.user).order_by('sort_order', 'name')
+        choices = Choice.objects.visible_to(request.user).filter(
+            choice_type=Choice.TYPE
+        ).order_by('sort_order', 'name')
         return Response([
             {'id': c.custom_type_id, 'name': c.name, 'builtin': c.builtin}
             for c in choices
@@ -150,7 +147,7 @@ class CustomTypeView(APIView):
 
     def put(self, request, pk=None):
         try:
-            obj = CustomType.objects.get(id=pk, owner=request.user)
+            obj = CustomType.objects.owned_by(request.user).get(id=pk)
         except CustomType.DoesNotExist:
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
         name = request.data.get('name', '').strip()
@@ -161,8 +158,8 @@ class CustomTypeView(APIView):
 
     def delete(self, request, pk=None):
         try:
-            obj = CustomType.objects.get(id=pk, owner=request.user)
+            obj = CustomType.objects.owned_by(request.user).get(id=pk)
+            obj.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
         except CustomType.DoesNotExist:
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
-        obj.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)

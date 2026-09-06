@@ -1,4 +1,9 @@
-"""Financial analytics computation for the dashboard and ratios."""
+"""Financial analytics computation for the dashboard and ratios.
+
+Totals are expressed in the user's base currency. Records keep the currency
+they happened in, so sums go through `currency_service.sum_in` instead of a
+plain SQL Sum — adding pesos to dollars would be silently wrong.
+"""
 import math
 from datetime import timedelta
 
@@ -7,53 +12,87 @@ from django.db.models.functions import TruncMonth
 from django.utils import timezone
 
 from ..models import FinancialRecord, FinancialSnapshot, Debt
-from ..services.currency import convert_to_cop, get_rate_map
+from . import currency_service, patrimony_service
+from .snapshot_service import base_currency_for
 
 ESSENTIAL_CATEGORIES = ['Rent & Housing', 'Utilities', 'Food & Dining', 'Healthcare', 'Transportation']
 
 
-def build_dashboard_data(owner, start_date, end_date):
-    """Live dashboard computation (used when snapshots are incomplete)."""
-    records = FinancialRecord.objects.filter(owner=owner, date__gte=start_date, date__lte=end_date)
+def build_dashboard_data(start_date, end_date, user):
+    """Live dashboard computation for one user (when snapshots are incomplete)."""
+    base = base_currency_for(user)
+    records = FinancialRecord.objects.filter(
+        owner=user, date__gte=start_date, date__lte=end_date
+    )
 
-    income_data = records.filter(type='income').annotate(
-        month=TruncMonth('date')
-    ).values('month').annotate(
-        total=Sum('amount')
-    ).order_by('month')
+    income_data = _monthly_totals(records.filter(type='income'), base)
+    expense_data = _monthly_totals(records.filter(type='expense'), base)
 
-    expense_data = records.filter(type='expense').annotate(
-        month=TruncMonth('date')
-    ).values('month').annotate(
-        total=Sum('amount')
-    ).order_by('month')
-
-    expense_by_category = records.filter(type='expense').values('category').annotate(
-        total=Sum('amount'),
-        count=Count('id')
-    ).order_by('-total')
-
-    income_by_category = records.filter(type='income').values('category').annotate(
-        total=Sum('amount'),
-        count=Count('id')
-    ).order_by('-total')
-
-    debts = Debt.objects.filter(owner=owner, status='active')
+    debts = Debt.objects.filter(owner=user, status='active')
+    unconvertible = currency_service.unconvertible_currencies([records, debts], base)
 
     return {
         'period': {'start': start_date, 'end': end_date},
+        'base_currency': base,
         'income_vs_expenses': format_monthly_data(income_data, expense_data),
-        'expense_by_category': list(expense_by_category),
-        'income_by_category': list(income_by_category),
-        'monthly_trends': get_monthly_trends(records, start_date, end_date),
-        'financial_ratios': calculate_financial_ratios(owner, records, start_date, end_date),
-        'debt_summary': get_debt_summary(debts),
-        'summary': get_summary_stats(records),
+        'expense_by_category': _totals_by_category(records.filter(type='expense'), base),
+        'income_by_category': _totals_by_category(records.filter(type='income'), base),
+        'monthly_trends': get_monthly_trends(records, start_date, end_date, base),
+        'financial_ratios': calculate_financial_ratios(records, start_date, end_date, user, base),
+        'debt_summary': get_debt_summary(debts, base),
+        'summary': get_summary_stats(records, base),
+        # Amounts in a currency with no rate are excluded from every total
+        # above rather than added unconverted. Naming those currencies here
+        # is what lets a client say the figures are partial.
+        'conversion': {
+            'complete': not unconvertible,
+            'unconvertible_currencies': unconvertible,
+        },
     }
 
 
-def build_dashboard_from_snapshots(owner, start_date, end_date):
-    """Build dashboard response from pre-computed monthly snapshots.
+def _monthly_totals(records, base):
+    """[{month, total}] in the base currency, one conversion per month+currency."""
+    rows = (
+        records.annotate(month=TruncMonth('date'))
+        .values('month', 'currency')
+        .annotate(total=Sum('amount'))
+        .order_by('month')
+    )
+    per_month = {}
+    for row in rows:
+        converted = currency_service.Total.converted(
+            row['total'] or 0, row['currency'] or base, base
+        )
+        per_month[row['month']] = per_month.get(row['month'], 0) + float(converted)
+    return [
+        {'month': month, 'total': total}
+        for month, total in sorted(per_month.items())
+    ]
+
+
+def _totals_by_category(records, base):
+    """[{category, total, count}] in the base currency, biggest first."""
+    rows = (
+        records.values('category', 'currency')
+        .annotate(total=Sum('amount'), count=Count('id'))
+    )
+    totals, counts = {}, {}
+    for row in rows:
+        category = row['category']
+        converted = currency_service.Total.converted(
+            row['total'] or 0, row['currency'] or base, base
+        )
+        totals[category] = totals.get(category, 0) + float(converted)
+        counts[category] = counts.get(category, 0) + row['count']
+    return [
+        {'category': category, 'total': round(total, 2), 'count': counts[category]}
+        for category, total in sorted(totals.items(), key=lambda item: -item[1])
+    ]
+
+
+def build_dashboard_from_snapshots(start_date, end_date, user):
+    """Build one user's dashboard response from pre-computed monthly snapshots.
 
     Returns None if not all months in range have snapshots.
     """
@@ -68,7 +107,9 @@ def build_dashboard_from_snapshots(owner, start_date, end_date):
         else:
             current = current.replace(month=current.month + 1)
 
-    snapshots = list(FinancialSnapshot.objects.filter(owner=owner, date__in=months).order_by('date'))
+    snapshots = list(
+        FinancialSnapshot.objects.filter(owner=user, date__in=months).order_by('date')
+    )
     if len(snapshots) != len(months):
         return None
 
@@ -101,11 +142,12 @@ def build_dashboard_from_snapshots(owner, start_date, end_date):
         for cat, total in sorted(cat_totals.items(), key=lambda x: -x[1])
     ]
 
-    # Compute financial ratios from aggregate
-    total_min_payment = sum(
-        convert_to_cop(float(d.minimum_payment), d.currency or 'COP')
-        for d in Debt.objects.filter(owner=owner, status='active')
-    )
+    # Compute financial ratios from aggregate. Snapshot totals are already in
+    # the base currency; debts still have to be converted from their own.
+    base = base_currency_for(user)
+    total_min_payment = float(currency_service.sum_in(
+        Debt.objects.filter(owner=user, status='active'), base, field='minimum_payment'
+    ))
     current_ratio = total_income / total_min_payment if total_min_payment > 0 else None
     essential_total = sum(
         cat_totals.get(cat, 0) for cat in ESSENTIAL_CATEGORIES
@@ -120,7 +162,7 @@ def build_dashboard_from_snapshots(owner, start_date, end_date):
     # YoY growth from first snapshot vs year before
     first_snap = snapshots[0]
     prev_date = first_snap.date.replace(year=first_snap.date.year - 1)
-    prev_snap = FinancialSnapshot.objects.filter(owner=owner, date=prev_date).first()
+    prev_snap = FinancialSnapshot.objects.filter(owner=user, date=prev_date).first()
     if prev_snap:
         prev_income = float(prev_snap.total_income)
         prev_expenses = float(prev_snap.total_expenses)
@@ -128,10 +170,10 @@ def build_dashboard_from_snapshots(owner, start_date, end_date):
         prev_year_start = first_snap.date.replace(year=first_snap.date.year - 1)
         prev_year_end = (prev_year_start.replace(day=1) + timedelta(days=31)).replace(day=1) - timedelta(days=1)
         prev_records = FinancialRecord.objects.filter(
-            owner=owner, date__gte=prev_year_start, date__lte=prev_year_end
+            owner=user, date__gte=prev_year_start, date__lte=prev_year_end
         )
-        prev_income = float(prev_records.filter(type='income').aggregate(Sum('amount'))['amount__sum'] or 0)
-        prev_expenses = float(prev_records.filter(type='expense').aggregate(Sum('amount'))['amount__sum'] or 0)
+        prev_income = float(currency_service.sum_in(prev_records.filter(type='income'), base))
+        prev_expenses = float(currency_service.sum_in(prev_records.filter(type='expense'), base))
     income_growth_yoy = ((total_income - prev_income) / prev_income * 100) if prev_income > 0 else 0
     expense_growth_yoy = ((total_expenses - prev_expenses) / prev_expenses * 100) if prev_expenses > 0 else 0
     net_worth_growth = income_growth_yoy - expense_growth_yoy
@@ -149,6 +191,7 @@ def build_dashboard_from_snapshots(owner, start_date, end_date):
 
     return {
         'period': {'start': start_date, 'end': end_date},
+        'base_currency': base,
         'income_vs_expenses': income_vs_expenses,
         'expense_by_category': expense_by_category,
         'income_by_category': [],
@@ -187,11 +230,11 @@ def build_dashboard_from_snapshots(owner, start_date, end_date):
     }
 
 
-def get_monthly_trends(records, start_date, end_date):
-    """Get monthly income/expense trends."""
-    monthly = records.annotate(month=TruncMonth('date')).values('month', 'type').annotate(
-        total=Sum('amount')
-    ).order_by('month')
+def get_monthly_trends(records, start_date, end_date, base):
+    """Get monthly income/expense trends, totalled in the base currency."""
+    monthly = records.annotate(month=TruncMonth('date')).values(
+        'month', 'type', 'currency'
+    ).annotate(total=Sum('amount')).order_by('month')
 
     # Organize by month
     month_map = {}
@@ -199,10 +242,13 @@ def get_monthly_trends(records, start_date, end_date):
         month_key = item['month'].strftime('%Y-%m')
         if month_key not in month_map:
             month_map[month_key] = {'income': 0, 'expenses': 0, 'net': 0}
+        amount = float(currency_service.Total.converted(
+            item['total'] or 0, item['currency'] or base, base
+        ))
         if item['type'] == 'income':
-            month_map[month_key]['income'] = float(item['total'])
+            month_map[month_key]['income'] += amount
         else:
-            month_map[month_key]['expenses'] = float(item['total'])
+            month_map[month_key]['expenses'] += amount
 
     # Calculate net
     for month in month_map:
@@ -211,20 +257,16 @@ def get_monthly_trends(records, start_date, end_date):
     return [{'month': k, **v} for k, v in sorted(month_map.items())]
 
 
-def calculate_financial_ratios(owner, records, start_date, end_date):
-    """Calculate key financial health ratios."""
-    total_income = float(records.filter(type='income').aggregate(Sum('amount'))['amount__sum'] or 0)
-    total_expenses = float(records.filter(type='expense').aggregate(Sum('amount'))['amount__sum'] or 0)
+def calculate_financial_ratios(records, start_date, end_date, user, base):
+    """Calculate key financial health ratios for one user, in `base`."""
+    total_income = float(currency_service.sum_in(records.filter(type='income'), base))
+    total_expenses = float(currency_service.sum_in(records.filter(type='expense'), base))
     net_cash_flow = total_income - total_expenses
 
     # Get active debts
-    debts = Debt.objects.filter(owner=owner, status='active')
-    total_debt = sum(
-        convert_to_cop(float(d.current_balance), d.currency or 'COP') for d in debts
-    )
-    total_min_payment = sum(
-        convert_to_cop(float(d.minimum_payment), d.currency or 'COP') for d in debts
-    )
+    debts = Debt.objects.filter(owner=user, status='active')
+    total_debt = float(currency_service.sum_in(debts, base, field='current_balance'))
+    total_min_payment = float(currency_service.sum_in(debts, base, field='minimum_payment'))
 
     # Liquidity ratios (simplified - using cash flow as proxy)
     # Current ratio: current assets / current liabilities
@@ -233,9 +275,9 @@ def calculate_financial_ratios(owner, records, start_date, end_date):
 
     # Quick ratio: (cash + receivables) / current liabilities
     # Simplified: (income - essential expenses) / debt payments
-    essential_expenses = float(records.filter(
-        type='expense', category__in=ESSENTIAL_CATEGORIES
-    ).aggregate(Sum('amount'))['amount__sum'] or 0)
+    essential_expenses = float(currency_service.sum_in(
+        records.filter(type='expense', category__in=ESSENTIAL_CATEGORIES), base
+    ))
 
     quick_ratio = (total_income - essential_expenses) / total_min_payment if total_min_payment > 0 else None
 
@@ -249,7 +291,11 @@ def calculate_financial_ratios(owner, records, start_date, end_date):
 
     # Solvency
     debt_to_income = (total_min_payment / total_income * 100) if total_income > 0 else 0
-    debt_to_asset = None  # Would need asset tracking
+    # Now computable: the asset registry exists.
+    total_asset_value, _, _ = patrimony_service.net_worth_for(user, base)
+    debt_to_asset = (
+        float(total_debt / float(total_asset_value) * 100) if total_asset_value > 0 else None
+    )
 
     # Growth (YoY comparison)
     current_year = timezone.now().year
@@ -257,10 +303,10 @@ def calculate_financial_ratios(owner, records, start_date, end_date):
     prev_year_end = end_date.replace(year=current_year - 1)
 
     prev_records = FinancialRecord.objects.filter(
-        owner=owner, date__gte=prev_year_start, date__lte=prev_year_end
+        owner=user, date__gte=prev_year_start, date__lte=prev_year_end
     )
-    prev_income = float(prev_records.filter(type='income').aggregate(Sum('amount'))['amount__sum'] or 0)
-    prev_expenses = float(prev_records.filter(type='expense').aggregate(Sum('amount'))['amount__sum'] or 0)
+    prev_income = float(currency_service.sum_in(prev_records.filter(type='income'), base))
+    prev_expenses = float(currency_service.sum_in(prev_records.filter(type='expense'), base))
 
     income_growth_yoy = ((total_income - prev_income) / prev_income * 100) if prev_income > 0 else 0
     expense_growth_yoy = ((total_expenses - prev_expenses) / prev_expenses * 100) if prev_expenses > 0 else 0
@@ -289,94 +335,64 @@ def calculate_financial_ratios(owner, records, start_date, end_date):
             'net_worth_growth': round(net_worth_growth, 2),
         },
         'operational_efficiency': {
-            'expenses_per_category': get_expenses_per_category(records),
+            'expenses_per_category': get_expenses_per_category(records, base),
         }
     }
 
 
-def get_expenses_per_category(records):
-    """Get expense breakdown by category for operational efficiency."""
-    expenses = records.filter(type='expense').values('category').annotate(
-        total=Sum('amount'),
-        avg=Avg('amount'),
-        count=Count('id')
-    ).order_by('-total')
-
-    total = sum(float(e['total']) for e in expenses)
+def get_expenses_per_category(records, base):
+    """Get expense breakdown by category, totalled in the base currency."""
+    rows = _totals_by_category(records.filter(type='expense'), base)
+    total = sum(row['total'] for row in rows)
 
     result = {}
-    for e in expenses:
-        cat_total = float(e['total'])
-        result[e['category']] = {
-            'total': cat_total,
-            'average': float(e['avg']),
-            'count': e['count'],
-            'percentage': round(cat_total / total * 100, 2) if total > 0 else 0
+    for row in rows:
+        result[row['category']] = {
+            'total': row['total'],
+            'average': round(row['total'] / row['count'], 2) if row['count'] else 0,
+            'count': row['count'],
+            'percentage': round(row['total'] / total * 100, 2) if total > 0 else 0
         }
 
     return result
 
 
-def get_debt_summary(debts):
-    """Get summary of all active debts, grouped by currency.
-
-    COP-converted totals are computed for the flat aggregate fields so
-    that mixed-currency debts are not summed naively.  The per-currency
-    breakdown preserves native amounts for each currency chart.
-    """
-    currencies = set(d.currency or 'COP' for d in debts)
-    has_multiple_currencies = len(currencies) > 1
-
-    total_balance_cop = sum(
-        convert_to_cop(float(d.current_balance), d.currency or 'COP') for d in debts
+def get_debt_summary(debts, base):
+    """Get summary of all active debts, totalled in the base currency."""
+    total_balance = float(currency_service.sum_in(debts, base, field='current_balance'))
+    total_min_payment = float(currency_service.sum_in(debts, base, field='minimum_payment'))
+    total_interest = sum(
+        float(currency_service.Total.converted(d.monthly_interest, d.currency or base, base))
+        for d in debts
     )
-    total_min_payment_cop = sum(
-        convert_to_cop(float(d.minimum_payment), d.currency or 'COP') for d in debts
-    )
-    total_interest_cop = sum(
-        convert_to_cop(float(d.monthly_interest), d.currency or 'COP') for d in debts
-    )
-
-    # Per-currency native breakdown (no conversion within each bucket)
-    by_currency = {}
-    by_currency_cop = {}
-    for debt in debts:
-        curr = debt.currency or 'COP'
-        if curr not in by_currency:
-            by_currency[curr] = {'count': 0, 'total_balance': 0, 'total_monthly_payment': 0, 'total_monthly_interest': 0}
-            by_currency_cop[curr] = {'total_balance': 0, 'total_monthly_payment': 0, 'total_monthly_interest': 0}
-        by_currency[curr]['count'] += 1
-        by_currency[curr]['total_balance'] += float(debt.current_balance)
-        by_currency[curr]['total_monthly_payment'] += float(debt.minimum_payment)
-        by_currency[curr]['total_monthly_interest'] += float(debt.monthly_interest)
-        by_currency_cop[curr]['total_balance'] += float(convert_to_cop(float(debt.current_balance), curr))
-        by_currency_cop[curr]['total_monthly_payment'] += float(convert_to_cop(float(debt.minimum_payment), curr))
-        by_currency_cop[curr]['total_monthly_interest'] += float(convert_to_cop(float(debt.monthly_interest), curr))
 
     by_type = {}
     for debt in debts:
         if debt.debt_type not in by_type:
-            by_type[debt.debt_type] = {'count': 0, 'total_balance': 0, 'currency': debt.currency or 'COP'}
+            by_type[debt.debt_type] = {'count': 0, 'total_balance': 0}
         by_type[debt.debt_type]['count'] += 1
-        by_type[debt.debt_type]['total_balance'] += float(debt.current_balance)
+        by_type[debt.debt_type]['total_balance'] += float(
+            currency_service.Total.converted(debt.current_balance, debt.currency or base, base)
+        )
 
     return {
         'total_debts': debts.count(),
-        'total_balance': total_balance_cop if has_multiple_currencies else sum(float(d.current_balance) for d in debts),
-        'total_monthly_payment': total_min_payment_cop if has_multiple_currencies else sum(float(d.minimum_payment) for d in debts),
-        'total_monthly_interest': total_interest_cop if has_multiple_currencies else sum(float(d.monthly_interest) for d in debts),
-        'has_multiple_currencies': has_multiple_currencies,
-        'active_currencies': sorted(currencies),
-        'exchange_rates': get_rate_map(),
-        'by_currency': by_currency,
-        'by_currency_cop': by_currency_cop,
+        'base_currency': base,
+        'total_balance': total_balance,
+        'total_monthly_payment': total_min_payment,
+        'total_monthly_interest': total_interest,
         'by_type': by_type,
-        'payoff_timeline': estimate_payoff_timeline(debts),
+        'payoff_timeline': estimate_payoff_timeline(debts, base),
     }
 
 
-def estimate_payoff_timeline(debts):
-    """Estimate debt payoff timeline using avalanche method."""
+def estimate_payoff_timeline(debts, base):
+    """Estimate debt payoff timeline using avalanche method.
+
+    The payoff maths stay in each debt's own currency — mixing a peso balance
+    with a dollar payment would be nonsense — and only the reported figures
+    are expressed in the base currency.
+    """
     # Sort by interest rate (avalanche)
     sorted_debts = sorted(debts, key=lambda d: float(d.interest_rate), reverse=True)
 
@@ -392,27 +408,26 @@ def estimate_payoff_timeline(debts):
             continue
 
         payment = min_pay + extra_payment
-        if rate == 0:
-            # No interest: simple linear payoff
-            if payment <= 0:
-                months = float('inf')
-            else:
-                months = balance / payment
-        elif payment <= balance * rate:
+        if payment <= balance * rate:
             months = float('inf')
         else:
             months = math.log(payment / (payment - balance * rate)) / math.log(1 + rate)
 
+        source = debt.currency or base
+        total_interest = balance * rate * months if months != float('inf') else None
         timeline.append({
             'debt_id': str(debt.id),
             'name': debt.name,
             'type': debt.debt_type,
-            'currency': debt.currency or 'COP',
-            'balance': balance,
+            'currency': source,
+            'balance': float(currency_service.Total.converted(balance, source, base)),
             'interest_rate': float(debt.interest_rate),
-            'minimum_payment': min_pay,
+            'minimum_payment': float(currency_service.Total.converted(min_pay, source, base)),
             'estimated_months': round(months, 1) if months != float('inf') else None,
-            'total_interest': round(balance * rate * months, 2) if months != float('inf') else None,
+            'total_interest': (
+                float(currency_service.Total.converted(total_interest, source, base))
+                if total_interest is not None else None
+            ),
         })
 
         # After this debt is paid, add its payment to extra
@@ -421,22 +436,32 @@ def estimate_payoff_timeline(debts):
     return timeline
 
 
-def get_summary_stats(records):
-    """Get summary statistics."""
-    total_income = float(records.filter(type='income').aggregate(Sum('amount'))['amount__sum'] or 0)
-    total_expenses = float(records.filter(type='expense').aggregate(Sum('amount'))['amount__sum'] or 0)
-    total_other = float(records.exclude(type__in=['income', 'expense']).aggregate(Sum('amount'))['amount__sum'] or 0)
+def get_summary_stats(records, base):
+    """Get summary statistics, totalled in the base currency."""
+    income = records.filter(type='income')
+    expenses = records.filter(type='expense')
+    total_income = float(currency_service.sum_in(income, base))
+    total_expenses = float(currency_service.sum_in(expenses, base))
+    total_other = float(currency_service.sum_in(
+        records.exclude(type__in=['income', 'expense']), base
+    ))
     net = total_income - total_expenses
 
+    # Averages are derived from the converted totals rather than a SQL Avg,
+    # which would average across currencies.
+    income_count = income.count()
+    expense_count = expenses.count()
+
     return {
+        'base_currency': base,
         'total_income': total_income,
         'total_expenses': total_expenses,
         'total_other': total_other,
         'net_cash_flow': net,
         'savings_rate': round(net / total_income * 100, 2) if total_income > 0 else 0,
         'transaction_count': records.count(),
-        'avg_income': float(records.filter(type='income').aggregate(Avg('amount'))['amount__avg'] or 0),
-        'avg_expense': float(records.filter(type='expense').aggregate(Avg('amount'))['amount__avg'] or 0),
+        'avg_income': round(total_income / income_count, 2) if income_count else 0,
+        'avg_expense': round(total_expenses / expense_count, 2) if expense_count else 0,
     }
 
 

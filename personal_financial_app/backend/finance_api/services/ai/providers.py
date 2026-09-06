@@ -135,11 +135,12 @@ _PROVIDER_CLIENTS = {
 }
 
 
-def call_ai(user, system_prompt, user_message, history=None, provider=None, model=None, api_key=None):
-    """Call the given user's configured AI provider and return the text response.
+def call_ai(system_prompt, user_message, history=None, provider=None, model=None, api_key=None, user=None):
+    """Call the configured AI provider and return the text response.
 
-    Resolves provider/model/api key from that user's stored settings when not
-    given explicitly. Returns '' on any failure so callers can use rule fallbacks.
+    Resolves provider/model/api key from `user`'s stored settings when not
+    given explicitly. Returns '' on any failure so callers can use rule
+    fallbacks.
     """
     provider = provider or ai_settings.get_provider(user)
     api_key = api_key or ai_settings.get_api_key(user, provider)
@@ -159,7 +160,7 @@ def call_ai(user, system_prompt, user_message, history=None, provider=None, mode
         return ''
 
 
-def suggest_categories(user, transactions, categories, types, memories=None):
+def suggest_categories(transactions, categories, types, memories=None, user=None):
     """Ask the AI to categorize a batch of transactions; returns [] on failure."""
     prompt = _build_suggestion_prompt(transactions, categories, types, memories)
     provider = ai_settings.get_provider(user)

@@ -7,23 +7,22 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from ..models import Debt, FinancialRecord
-from ..permissions import IsOwner
 from ..serializers import DebtSerializer
+from ..services import currency_service
+from ..services.snapshot_service import base_currency_for
+from .mixins import OwnerScopedMixin
 
 
-class DebtViewSet(viewsets.ModelViewSet):
+class DebtViewSet(OwnerScopedMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing user debts.
     """
     queryset = Debt.objects.all()
     serializer_class = DebtSerializer
-    permission_classes = [IsOwner]
-
-    def perform_create(self, serializer):
-        serializer.save(owner=self.request.user)
+    currency_field = 'currency'
 
     def get_queryset(self):
-        queryset = super().get_queryset().filter(owner=self.request.user)
+        queryset = super().get_queryset()
         status_filter = self.request.query_params.get('status')
         if status_filter:
             queryset = queryset.filter(status=status_filter)
@@ -56,10 +55,10 @@ class DebtViewSet(viewsets.ModelViewSet):
         if interest > 0:
             FinancialRecord.objects.create(
                 owner=request.user,
+                currency=debt.currency,
                 type='expense',
                 category='Other',
                 amount=Decimal(str(interest)),
-                currency=debt.currency,
                 date=payment_date,
                 description=f'Interest payment on {debt.name}',
                 account_bank=debt.creditor
@@ -78,7 +77,11 @@ class DebtViewSet(viewsets.ModelViewSet):
         # Avalanche (highest interest first)
         avalanche = sorted(debts, key=lambda d: float(d.interest_rate), reverse=True)
         # Snowball (smallest balance first)
-        snowball = sorted(debts, key=lambda d: float(d.current_balance))
+        # Compare balances in one currency, or the ordering is meaningless.
+        base = base_currency_for(request.user)
+        snowball = sorted(debts, key=lambda d: float(
+            currency_service.Total.converted(d.current_balance, d.currency or base, base)
+        ))
 
         return Response({
             'avalanche': DebtSerializer(avalanche, many=True).data,

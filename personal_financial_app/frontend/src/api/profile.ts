@@ -12,7 +12,16 @@ export const profileApi = {
     return data;
   },
 
-  async update(payload: { currency?: string; new_type?: string; new_category?: string; new_category_type?: string }): Promise<ProfileSettings> {
+  async update(payload: {
+    currency?: string;
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+    phone_number?: string;
+    new_type?: string;
+    new_category?: string;
+    new_category_type?: string;
+  }): Promise<ProfileSettings> {
     const { data } = await apiClient.put<ProfileSettings>('/profile/', payload);
     return data;
   },

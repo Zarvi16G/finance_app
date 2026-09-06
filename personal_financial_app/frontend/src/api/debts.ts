@@ -2,23 +2,23 @@
  * API calls for the debt registry (CRUD). debt_type values and
 display labels mirror backend models/debts.py exactly.
  */
+import i18n from '../i18n';
 import { apiClient } from './client';
 import type { Debt } from '../types';
 
 export interface DebtInput {
-    name: string;
-    debt_type: string;
-    currency: string;
-    creditor: string;
-    original_amount: number | string;
-    current_balance: number | string;
-    interest_rate: number | string;
-    minimum_payment: number | string;
-    due_date: number;
-    start_date: string;
-    end_date?: string | null;
-    status?: string;
-    notes?: string;
+  name: string;
+  debt_type: string;
+  creditor: string;
+  original_amount: number | string;
+  current_balance: number | string;
+  interest_rate: number | string;
+  minimum_payment: number | string;
+  due_date: number;
+  start_date: string;
+  end_date?: string | null;
+  status?: string;
+  notes?: string;
 }
 
 export const debtsApi = {
@@ -46,3 +46,12 @@ export const debtsApi = {
     await apiClient.delete(`/debts/${id}/`);
   },
 };
+/** Labels for the fixed debt enums. These are closed sets defined in the
+ *  backend model, so translating them is safe — unlike user-created
+ *  categories, which stay in whatever words the user typed. The server's own
+ *  display string is the fallback for a value we do not know. */
+export const debtTypeLabel = (value: string, fallback = ''): string =>
+  i18n.t(`debtTypes.${value}`, { defaultValue: fallback || value });
+
+export const debtStatusLabel = (value: string, fallback = ''): string =>
+  i18n.t(`debtStatus.${value}`, { defaultValue: fallback || value });

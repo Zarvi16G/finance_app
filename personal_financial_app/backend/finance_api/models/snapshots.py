@@ -1,33 +1,5 @@
-"""Daily user snapshot model: daily USD exchange rates for currency conversion."""
-from django.conf import settings
-from django.db import models
-
-
-class DailyUserSnapshot(models.Model):
-    """
-    Daily snapshot of USD exchange rates for a specific user.
-    Stores a JSON map of currency codes to rates relative to USD.
-    e.g. {"EUR": 0.91, "COP": 4100.0} means 1 USD = 0.91 EUR = 4100.0 COP
-    """
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='daily_snapshots',
-    )
-    snapshot_date = models.DateField(unique=True)
-    rates = models.JSONField(
-        help_text="JSON map of currency codes to rates relative to USD. "
-        "E.g. {\"EUR\": 0.91, \"COP\": 4100.0}"
-    )
-
-    class Meta:
-        ordering = ['-snapshot_date']
-
-    def __str__(self):
-        return f"Daily Snapshot {self.snapshot_date}: {self.rates}"
-
-
 """FinancialSnapshot model: monthly financial health snapshots for trend analysis."""
+from django.conf import settings
 from django.db import models
 
 
@@ -38,10 +10,23 @@ class FinancialSnapshot(models.Model):
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='financial_snapshots',
-        help_text="The user this monthly snapshot belongs to",
+        related_name='snapshots',
+        help_text="The user this snapshot summarizes",
     )
-    date = models.DateField()  # First day of month; unique per owner (see Meta)
+    date = models.DateField()  # First day of month
+
+    # A snapshot is history: once written, its figures are read back for
+    # months. If a rate was missing when it was computed, the amounts in that
+    # currency were left out — so the row records that it is understated
+    # rather than passing forever as a clean total.
+    conversion_complete = models.BooleanField(
+        default=True,
+        help_text=(
+            "False when an amount could not be converted to the base currency "
+            "and was excluded from this snapshot's figures"
+        ),
+    )
+
     total_income = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_expenses = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     net_savings = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -69,15 +54,33 @@ class FinancialSnapshot(models.Model):
     expenses_per_category = models.JSONField(default=dict, blank=True)
 
     # Assets and liabilities
-    total_liabilities = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    total_assets = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
-    net_worth = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_liabilities = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    total_assets = models.DecimalField(max_digits=18, decimal_places=2, null=True, blank=True)
+    net_worth = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+
+    # Financial health (Wealthness). Stored per month so the metrics can be
+    # charted over time rather than only shown for today.
+    liquid_assets = models.DecimalField(
+        max_digits=18, decimal_places=2, default=0,
+        help_text="Assets convertible to cash within days, at this month's close",
+    )
+    emergency_fund_months = models.DecimalField(
+        max_digits=6, decimal_places=2, null=True, blank=True,
+        help_text="Months of essential spending the liquid assets would cover",
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['-date']
-        unique_together = ['owner', 'date']
+        constraints = [
+            # One snapshot per user per month: previously `date` was globally
+            # unique, so a second user's month silently overwrote the first's.
+            models.UniqueConstraint(
+                fields=['owner', 'date'],
+                name='uniq_snapshot_owner_date',
+            ),
+        ]
 
     def __str__(self):
-        return f"Snapshot {self.date.strftime('%Y-%m')}: Income {self.total_income}, Expenses {self.total_expenses}"
+        return f"Snapshot {self.date.strftime('%Y-%m')}: Income ${self.total_income}, Expenses ${self.total_expenses}"

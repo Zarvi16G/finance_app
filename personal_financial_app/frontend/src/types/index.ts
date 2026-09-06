@@ -7,6 +7,8 @@ export interface User {
   id: number;
   username: string;
   email: string;
+  first_name: string;
+  last_name: string;
   is_staff: boolean;
   is_active: boolean;
   date_joined: string;
@@ -23,91 +25,102 @@ export interface AuthResponse {
   user: User;
 }
 
+/**
+ * What POST /auth/login/ returns when the account has a second factor.
+ *
+ * `mfa_token` is deliberately not a JWT and carries no API authority: it only
+ * proves the password step was cleared, and is spent at /auth/2fa/verify/.
+ */
+export interface MfaChallenge {
+  mfa_required: true;
+  mfa_token: string;
+  method: string;
+}
+
+/** Login either signs you in or hands back a challenge — never both. */
+export type LoginResult = AuthResponse | MfaChallenge;
+
+export const isMfaChallenge = (result: LoginResult): result is MfaChallenge =>
+  (result as MfaChallenge).mfa_required === true;
+
 export interface FinancialRecord {
-    id: number;
-    type: 'income' | 'expense' | 'other';
-    category: string;
-    amount: number | string;
-    currency: string;
-    date: string;
-    description: string;
-    account_bank: string;
-    account_bank_other?: string;
-    created_at: string;
+  id: number;
+  type: 'income' | 'expense' | 'other';
+  category: string;
+  amount: number | string;
+  date: string;
+  description: string;
+  account_bank: string;
+  account_bank_other?: string;
+  created_at: string;
 }
 
 export interface BankStatement {
-    id: number;
-    file: string;
-    original_filename: string;
-    file_size_mb: number;
-    content_hash: string;
-    statement_type: string;
-    statement_type_display: string;
-    currency: string;
-    bank_name: string;
-    password: string;
-    account_number: string;
-    statement_period_start: string | null;
-    statement_period_end: string | null;
-    uploaded_at: string;
-    processed_at: string | null;
-    status: 'processing' | 'completed' | 'failed';
-    status_display: string;
-    total_transactions_extracted: number;
-    total_transactions_imported: number;
-    error_message: string | null;
-    total_income_usd: number;
-    total_expense_usd: number;
-    net_usd: number;
-    totals_stale: boolean;
-    totals_updated_at: string | null;
+  id: number;
+  file: string;
+  original_filename: string;
+  file_size_mb: number;
+  content_hash: string;
+  statement_type: string;
+  statement_type_display: string;
+  bank_name: string;
+  password: string;
+  account_number: string;
+  statement_period_start: string | null;
+  statement_period_end: string | null;
+  uploaded_at: string;
+  processed_at: string | null;
+  status: 'processing' | 'completed' | 'failed';
+  status_display: string;
+  total_transactions_extracted: number;
+  total_transactions_imported: number;
+  error_message: string | null;
 }
 
 export interface ExtractedTransaction {
-    id: number;
-    statement: number;
-    date: string;
-    raw_description: string;
-    cleaned_description: string;
-    amount: number | string;
-    currency: string;
-    transaction_type: string;
-    transaction_type_display: string;
-    suggested_category: string | null;
-    suggested_category_display: string;
-    confidence_score: number;
-    needs_review: boolean;
-    is_reviewed: boolean;
-    user_confirmed_category: string | null;
-    user_confirmed_type: string | null;
-    created_at: string;
-    reviewed_at: string | null;
+  id: number;
+  statement: number;
+  date: string;
+  raw_description: string;
+  cleaned_description: string;
+  amount: number | string;
+  transaction_type: string;
+  transaction_type_display: string;
+  suggested_category: string | null;
+  suggested_category_display: string;
+  confidence_score: number;
+  needs_review: boolean;
+  is_reviewed: boolean;
+  user_confirmed_category: string | null;
+  user_confirmed_type: string | null;
+  created_at: string;
+  reviewed_at: string | null;
 }
 
 export interface Debt {
-    id: string;
-    name: string;
-    debt_type: string;
-    debt_type_display: string;
-    currency: string;
-    original_amount: number | string;
-    current_balance: number | string;
-    interest_rate: number | string;
-    minimum_payment: number | string;
-    due_date: number;
-    start_date: string;
-    end_date: string | null;
-    status: string;
-    status_display: string;
-    creditor: string;
-    notes: string | null;
-    progress_percentage: number;
-    remaining_balance: number;
-    months_remaining: number | null;
-    monthly_interest: number;
-    created_at: string;
-    updated_at: string;
+  id: string;
+  name: string;
+  debt_type: string;
+  debt_type_display: string;
+  original_amount: number | string;
+  current_balance: number | string;
+  /** The currency the debt is actually denominated in. */
+  currency: string;
+  interest_rate: number | string;
+  minimum_payment: number | string;
+  due_date: number;
+  start_date: string;
+  end_date: string | null;
+  status: string;
+  status_display: string;
+  creditor: string;
+  notes: string | null;
+  progress_percentage: number;
+  remaining_balance: number;
+  months_remaining: number | null;
+  monthly_interest: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ExpectedGoal {
@@ -173,36 +186,6 @@ export interface DashboardData {
     total_balance: number;
     total_monthly_payment: number;
     total_monthly_interest: number;
-    has_multiple_currencies: boolean;
-    active_currencies: string[];
-    exchange_rates: Record<string, number>;
-    by_currency: Record<string, {
-      count: number;
-      total_balance: number;
-      total_monthly_payment: number;
-      total_monthly_interest: number;
-    }>;
-    by_currency_cop: Record<string, {
-      total_balance: number;
-      total_monthly_payment: number;
-      total_monthly_interest: number;
-    }>;
-    by_type: Record<string, {
-      count: number;
-      total_balance: number;
-      currency: string;
-    }>;
-    payoff_timeline: Array<{
-      debt_id: string;
-      name: string;
-      type: string;
-      currency: string;
-      balance: number;
-      interest_rate: number;
-      minimum_payment: number;
-      estimated_months: number | null;
-      total_interest: number | null;
-    }>;
   };
   summary: {
     total_income: number;
@@ -211,6 +194,7 @@ export interface DashboardData {
     net_cash_flow: number;
     savings_rate: number;
   };
+  conversion: ConversionReport;
 }
 
 export interface AIAnalysisResult {
@@ -238,19 +222,216 @@ export interface Choice {
   builtin: boolean;
 }
 
-export interface ProfileSettings {
-    currency: string;
-    exchange_rates: Record<string, number>;
-    types: Array<{ id: number; name: string; builtin: boolean }>;
-    categories: Array<{ id: number; name: string; type: string; builtin: boolean }>;
+export interface TwoFactorStatus {
+  enabled: boolean;
+  method: string | null;
+  backup_codes_remaining: number;
+  phone_number: string;
+  phone_verified: boolean;
+  /** False while no SMS provider is wired up. The UI says so rather than
+   *  offering a switch that would do nothing. */
+  sms_available: boolean;
 }
 
-export interface CurrencyRate {
-    id: number;
-    currency_code: string;
-    rate_to_cop: number;
-    created_at: string;
-    updated_at: string;
+export interface TwoFactorEnrollment {
+  secret: string;
+  otpauth_uri: string;
+  qr_code: string;
+}
+
+export interface ProfileSettings {
+  currency: string;
+  username: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  phone_number: string;
+  phone_verified: boolean;
+  two_factor: TwoFactorStatus;
+  types: Array<{ id: number; name: string; builtin: boolean }>;
+  categories: Array<{ id: number; name: string; type: string; builtin: boolean }>;
+}
+
+export interface Currency {
+  code: string;
+  name: string;
+  symbol: string;
+  decimals: number;
+}
+
+/**
+ * Whether an endpoint's totals could be fully expressed in the base currency.
+ *
+ * The backend excludes an amount it cannot convert rather than adding it
+ * unconverted, so a total is either right or visibly partial. `complete:
+ * false` means figures on this screen are understated, and the named
+ * currencies are why.
+ */
+export interface ConversionReport {
+  complete: boolean;
+  unconvertible_currencies: string[];
+  /** Stored months computed while a rate was missing (Wealthness only). */
+  partial_months?: string[];
+}
+
+export interface CurrencyCatalog {
+  base_currency: string;
+  currencies: Currency[];
+}
+
+/* ---------------------------------------------------------------- Patrimony */
+
+export interface Asset {
+  id: number;
+  name: string;
+  asset_type: string;
+  asset_type_display: string;
+  current_value: number | string;
+  currency: string;
+  is_liquid: boolean;
+  valued_at: string | null;
+  acquired_date: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PatrimonySummary {
+  base_currency: string;
+  total_assets: number;
+  liquid_assets: number;
+  illiquid_assets: number;
+  total_liabilities: number;
+  net_worth: number;
+  /** Null when there are no assets: there is nothing to take a share of. */
+  debt_to_asset: number | null;
+  assets_by_type: Array<{ type: string; total: number; count: number }>;
+  liabilities_by_type: Array<{ type: string; total: number; count: number }>;
+  asset_count: number;
+  liability_count: number;
+  conversion: ConversionReport;
+}
+
+/* --------------------------------------------------------------- Wealthness */
+
+/** Every band the backend can report. `unknown` is a real answer, not an
+ *  error: it means there is not enough data to measure yet. */
+export type MetricStatus =
+  | 'strong'
+  | 'adequate'
+  | 'healthy'
+  | 'low'
+  | 'high'
+  | 'critical'
+  | 'unknown';
+
+export interface NetFlowPoint {
+  month: string;
+  income: number;
+  expenses: number;
+  net: number;
+  net_worth: number;
+  conversion_complete: boolean;
+}
+
+export interface WealthnessOverview {
+  base_currency: string;
+  period: { months: number; from: string | null; to: string | null };
+  net_flow: {
+    series: NetFlowPoint[];
+    total_income: number;
+    total_expenses: number;
+    net: number;
+    latest_month_net: number | null;
+  };
+  trend: {
+    direction: 'growing' | 'declining' | 'stable' | 'unknown';
+    change_pct: number | null;
+    basis: 'net_worth' | 'net_flow' | null;
+    from?: string;
+    to?: string;
+    note: string;
+  };
+  savings_rate: { value: number | null; status: MetricStatus; note: string };
+  emergency_fund: {
+    liquid_assets: number;
+    avg_monthly_essentials: number;
+    months_covered: number | null;
+    status: MetricStatus;
+    note: string;
+  };
+  debt_load: { debt_to_income: number | null; status: MetricStatus; note: string };
+  net_worth: {
+    current: number;
+    total_assets: number;
+    total_liabilities: number;
+    liquid_assets: number;
+  };
+  conversion: ConversionReport;
+}
+
+/* ---------------------------------------------------------- Life experiences */
+
+export interface ExperienceBudgetItem {
+  id: number;
+  goal: number;
+  label: string;
+  category: string;
+  category_display: string;
+  estimated_amount: number | string;
+  actual_amount: number | string | null;
+  variance: number | null;
+  currency: string;
+  is_booked: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExperienceBudget {
+  estimated_total: number;
+  booked_total: number;
+  actual_total: number;
+  items_priced: number;
+  items_booked: number;
+  by_category: Array<{
+    category: string;
+    estimated: number;
+    count: number;
+    percentage: number;
+  }>;
+  /** What the user decided to save. */
+  target_amount: number;
+  saved_amount: number;
+  still_to_save: number;
+  /** Itemised plan minus target. Positive means the plan costs more than the
+   *  target — a plan with a hole in it. */
+  budget_vs_target: number;
+  progress_percentage: number;
+  conversion: ConversionReport;
+}
+
+export interface Experience {
+  id: number;
+  title: string;
+  status: string;
+  location: string;
+  currency: string;
+  start_date: string | null;
+  end_date: string | null;
+  experience_date: string | null;
+  description: string;
+  budget: ExperienceBudget;
+}
+
+export interface LifeExperiences {
+  base_currency: string;
+  count: number;
+  total_estimated: number;
+  total_saved: number;
+  total_still_to_save: number;
+  experiences: Experience[];
+  conversion: ConversionReport;
 }
 
 export interface CategorySuggestion {
