@@ -237,7 +237,7 @@ export default function DebtRegistry() {
                 <TableRow key={debt.id}>
                   <TableCell>
                     <Link
-                      to={`/debts/${debt.id}`}
+                      to={`/deudas/${debt.id}`}
                       className="font-medium text-foreground hover:underline"
                     >
                       {debt.name}

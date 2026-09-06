@@ -1,268 +1,81 @@
 /**
- * Profile settings page: currency preference
-plus custom category/type vocabulary
-(Choice) management with AI-key setup.
+ * Perfil y seguridad — identity, base currency, the second factor, and the
+ * vocabulary of categories and types.
+ *
+ * The base currency is the setting with the widest reach: it decides the
+ * currency every total on every other screen is read in. The copy next to it
+ * says the thing that is easy to get wrong — each movement keeps the currency
+ * it actually happened in, and the conversion is computed when it is
+ * displayed, never written over the original amount.
  */
 import { useEffect, useState, type FormEvent } from 'react';
-import CardBox from '../shared/CardBox';
 import PageHeader from '../shared/PageHeader';
+import TwoFactorSection from './TwoFactorSection';
+import { SettingsPanel } from './AiSettingsPanel';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../ui/dialog';
 import { Badge } from '../ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { profileApi } from '../../api/profile';
-import { aiApi } from '../../api/ai';
+import { currencyApi } from '../../api/currency';
 import { getErrorMessage } from '../../api/client';
-import type { AIConfig, ProfileSettings } from '../../types';
-import { Icon } from '@iconify/react';
-
-const PROVIDERS = [
-  { value: 'gemini', label: 'Gemini (Google)' },
-  { value: 'openai', label: 'OpenAI' },
-  { value: 'anthropic', label: 'Anthropic' },
-];
-
-export function ApiKeyModal({
-  open,
-  onOpenChange,
-  provider,
-  onSaved,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  provider: string;
-  onSaved: (config: AIConfig) => void;
-}) {
-  const [apiKey, setApiKey] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-
-  const handleSave = async (e: FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    setError('');
-    setFieldErrors({});
-    try {
-      const config = await aiApi.saveSettings({ provider, api_key: apiKey });
-      setApiKey('');
-      onSaved(config);
-      onOpenChange(false);
-    } catch (err) {
-      const message = getErrorMessage(err);
-      setError(message);
-      const data = (err as { response?: { data?: { error_code?: string } } }).response?.data;
-      if (data?.error_code === 'invalid_key') {
-        setFieldErrors((f) => ({ ...f, api_key: message }));
-      }
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const providerLabel = PROVIDERS.find((p) => p.value === provider)?.label ?? provider;
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Configure {providerLabel} API Key</DialogTitle>
-          <DialogDescription>
-            The key is validated live, encrypted at rest, and returned masked.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSave} className="space-y-4">
-          <div>
-            <Label htmlFor="api-key">API Key</Label>
-            <Input
-              id="api-key"
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Paste your API key"
-              required
-            />
-            {fieldErrors.api_key && (
-              <p className="mt-1 text-xs text-error">{fieldErrors.api_key}</p>
-            )}
-          </div>
-          {error && <p className="rounded-md bg-error/10 px-3 py-2 text-sm text-error">{error}</p>}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={saving || !apiKey}>
-              {saving ? 'Validating…' : 'Save Key'}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-export function SettingsPanel() {
-  const [config, setConfig] = useState<AIConfig | null>(null);
-  const [provider, setProvider] = useState('gemini');
-  const [model, setModel] = useState('');
-  const [error, setError] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [keyModalOpen, setKeyModalOpen] = useState(false);
-  const [keyProvider, setKeyProvider] = useState('gemini');
-
-  useEffect(() => {
-    aiApi
-      .getSettings()
-      .then((c) => {
-        setConfig(c);
-        setProvider(c.provider);
-        setModel(c.model);
-      })
-      .catch((err) => setError(getErrorMessage(err)));
-  }, []);
-
-  const handleProviderChange = (value: string) => {
-    setProvider(value);
-    if (config?.default_models?.[value]) {
-      setModel(config.default_models[value]);
-    }
-  };
-
-  const handleSaveSettings = async (e: FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    setError('');
-    try {
-      const updated = await aiApi.saveSettings({ provider, model });
-      setConfig(updated);
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const maskedKey = config?.keys?.[provider];
-
-  return (
-    <div className="space-y-4">
-      {error && <p className="rounded-md bg-error/10 px-3 py-2 text-sm text-error">{error}</p>}
-
-      <form onSubmit={handleSaveSettings} className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <Label htmlFor="ai-provider">AI Provider</Label>
-            <Select value={provider} onValueChange={handleProviderChange}>
-              <SelectTrigger id="ai-provider" className="mt-2">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PROVIDERS.map((p) => (
-                  <SelectItem key={p.value} value={p.value}>
-                    {p.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="ai-model">Model</Label>
-            <Input
-              id="ai-model"
-              className="mt-2"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder={config?.default_models?.[provider] ?? 'Default model'}
-            />
-            {config?.default_models?.[provider] && (
-              <p className="mt-1 text-xs text-muted-foreground">
-                Default: {config.default_models[provider]}
-              </p>
-            )}
-          </div>
-        </div>
-        <Button type="submit" disabled={saving}>
-          {saving ? 'Saving…' : 'Save Settings'}
-        </Button>
-      </form>
-
-      <div className="rounded-sm border border-border p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-medium text-foreground">API Key — {provider}</p>
-            <p className="text-sm text-muted-foreground">
-              {maskedKey ? `Stored: ${maskedKey}` : 'No key stored yet'}
-            </p>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => { setKeyProvider(provider); setKeyModalOpen(true); }}>
-            <Icon icon="solar:key-linear" height={16} width={16} className="mr-2" />
-            {maskedKey ? 'Replace Key' : 'Add Key'}
-          </Button>
-        </div>
-      </div>
-
-      <ApiKeyModal
-        open={keyModalOpen}
-        onOpenChange={setKeyModalOpen}
-        provider={keyProvider}
-        onSaved={setConfig}
-      />
-    </div>
-  );
-}
+import type { Currency, ProfileSettings as ProfileSettingsType, TwoFactorStatus } from '../../types';
 
 export default function ProfileSettings() {
-  const [settings, setSettings] = useState<ProfileSettings | null>(null);
-  const [currency, setCurrency] = useState('USD');
+  const [settings, setSettings] = useState<ProfileSettingsType | null>(null);
+  const [currencies, setCurrencies] = useState<Currency[]>([]);
+  const [identity, setIdentity] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone_number: '',
+  });
+  const [currency, setCurrency] = useState('COP');
   const [newType, setNewType] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [newCategoryType, setNewCategoryType] = useState('expense');
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
-  const fetchSettings = async () => {
-    try {
-      const data = await profileApi.get();
-      setSettings(data);
-      setCurrency(data.currency);
-    } catch (err) {
-      setError(getErrorMessage(err));
-    }
+  const adopt = (data: ProfileSettingsType) => {
+    setSettings(data);
+    setCurrency(data.currency);
+    setIdentity({
+      first_name: data.first_name ?? '',
+      last_name: data.last_name ?? '',
+      email: data.email ?? '',
+      phone_number: data.phone_number ?? '',
+    });
   };
 
   useEffect(() => {
-    fetchSettings();
+    profileApi.get().then(adopt).catch((err) => setError(getErrorMessage(err)));
+    currencyApi
+      .catalog()
+      .then((c) => setCurrencies(c.currencies))
+      .catch(() => setCurrencies([]));
   }, []);
 
-  const handleSave = async (e: FormEvent) => {
+  const save = async (e: FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    setSaved(false);
     setError('');
     try {
-      const updated = await profileApi.update({
-        currency,
-        new_type: newType,
-        new_category: newCategory,
-        new_category_type: newCategoryType,
-      });
-      setSettings(updated);
+      adopt(
+        await profileApi.update({
+          ...identity,
+          currency,
+          new_type: newType,
+          new_category: newCategory,
+          new_category_type: newCategoryType,
+        }),
+      );
       setNewType('');
       setNewCategory('');
+      setSaved(true);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -270,92 +83,173 @@ export default function ProfileSettings() {
     }
   };
 
+  const onTwoFactorChanged = (status: TwoFactorStatus) =>
+    setSettings((s) => (s ? { ...s, two_factor: status } : s));
+
+  if (!settings) {
+    return error ? (
+      <p className="border border-error/40 bg-lighterror p-4 text-sm text-error">{error}</p>
+    ) : (
+      <p className="text-sm text-muted-foreground">Cargando tu perfil…</p>
+    );
+  }
+
+  // The phone the user is currently editing may differ from the saved one; the
+  // verification badge describes what is stored, not what is typed.
+  const phoneChanged = identity.phone_number !== (settings.phone_number ?? '');
+
   return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow="Account Settings"
-        title="Profile & preferences"
-        description="Currency, categories and the AI assistant that reads your ledger."
-      />
+    <div className="flex flex-col gap-8">
+      <PageHeader eyebrow="Perfil y seguridad" title="Tu cuenta" />
 
-      {error && <p className="rounded-md bg-error/10 px-3 py-2 text-sm text-error">{error}</p>}
+      {error && <p className="bg-lighterror px-3 py-2 text-sm text-error">{error}</p>}
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <CardBox>
-          <div className="p-6">
-            <h3 className="font-display text-xl font-normal text-foreground">Currency & Categories</h3>
-            <form onSubmit={handleSave} className="mt-4 space-y-4">
-              <div>
-                <Label htmlFor="currency">Currency Code</Label>
-                <Input
-                  id="currency"
-                  className="mt-2"
-                  value={currency}
-                  onChange={(e) => setCurrency(e.target.value.toUpperCase())}
-                  required
-                  maxLength={3}
-                />
-              </div>
-              <div className="rounded-sm border border-border p-4">
-                <p className="text-sm font-medium text-foreground">Add Transaction Type</p>
-                <div className="mt-3 flex gap-2">
+      <form onSubmit={save} className="flex flex-col gap-8">
+        {/* Identity + base currency */}
+        <div className="grid gap-11 border-t rule-strong pt-6 lg:grid-cols-2">
+          <div>
+            <div className="fig mb-4 text-[19px] font-medium">Datos personales</div>
+            <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="p-first">Nombre</Label>
                   <Input
-                    value={newType}
-                    onChange={(e) => setNewType(e.target.value)}
-                    placeholder="e.g. Bonus"
+                    id="p-first"
+                    className="mt-2"
+                    value={identity.first_name}
+                    onChange={(e) => setIdentity({ ...identity, first_name: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="p-last">Apellido</Label>
+                  <Input
+                    id="p-last"
+                    className="mt-2"
+                    value={identity.last_name}
+                    onChange={(e) => setIdentity({ ...identity, last_name: e.target.value })}
                   />
                 </div>
               </div>
-              <div className="rounded-sm border border-border p-4">
-                <p className="text-sm font-medium text-foreground">Add Category</p>
-                <div className="mt-3 flex flex-wrap gap-2">
+              <div>
+                <Label htmlFor="p-email">Correo</Label>
+                <Input
+                  id="p-email"
+                  type="email"
+                  className="mt-2"
+                  value={identity.email}
+                  onChange={(e) => setIdentity({ ...identity, email: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="p-phone">Teléfono</Label>
+                <div className="mt-2 flex items-center gap-3">
                   <Input
+                    id="p-phone"
+                    type="tel"
+                    className="flex-grow"
+                    value={identity.phone_number}
+                    onChange={(e) => setIdentity({ ...identity, phone_number: e.target.value })}
+                    placeholder="+57 300 123 4567"
+                  />
+                  {identity.phone_number && !phoneChanged && (
+                    <span
+                      className={`shrink-0 text-xs ${
+                        settings.phone_verified ? 'text-success' : 'text-warning'
+                      }`}
+                    >
+                      {settings.phone_verified ? 'Verificado' : 'Sin verificar'}
+                    </span>
+                  )}
+                </div>
+                <p className="m-0 mt-2 text-xs leading-relaxed text-muted-foreground">
+                  Cambiar el número lo marca como no verificado otra vez.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="lg:border-l lg:border-border lg:pl-11">
+            <div className="fig mb-4 text-[19px] font-medium">Moneda base</div>
+            <Select value={currency} onValueChange={setCurrency}>
+              <SelectTrigger id="p-currency" className="h-auto py-3">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(currencies.length
+                  ? currencies
+                  : [{ code: currency, name: currency, symbol: '', decimals: 2 }]
+                ).map((c) => (
+                  <SelectItem key={c.code} value={c.code}>
+                    <span className="fig font-semibold">{c.code}</span>
+                    <span className="ml-3 text-inksoft">{c.name}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="m-0 mt-3 text-sm leading-relaxed text-inksoft">
+              Todos los totales se leen en esta moneda. Cada movimiento conserva la moneda en la
+              que ocurrió realmente; la conversión se calcula al mostrarlo, nunca se guarda encima
+              del monto original.
+            </p>
+            <p className="m-0 mt-3.5 text-[13px] leading-relaxed text-muted-foreground">
+              Las tasas se actualizan una vez al día desde el proveedor configurado en el servidor.
+            </p>
+          </div>
+        </div>
+
+        {/* Vocabulary */}
+        <div className="grid gap-11 border-t rule-strong pt-6 lg:grid-cols-2">
+          <div>
+            <div className="fig mb-4 text-[19px] font-medium">Tus categorías y tipos</div>
+            <div className="flex flex-col gap-4">
+              <div>
+                <Label htmlFor="p-type">Añadir tipo de movimiento</Label>
+                <Input
+                  id="p-type"
+                  className="mt-2"
+                  value={newType}
+                  onChange={(e) => setNewType(e.target.value)}
+                  placeholder="Bonificación, reembolso…"
+                />
+              </div>
+              <div>
+                <Label htmlFor="p-cat">Añadir categoría</Label>
+                <div className="mt-2 flex flex-wrap gap-3">
+                  <Input
+                    id="p-cat"
+                    className="min-w-[180px] flex-grow"
                     value={newCategory}
                     onChange={(e) => setNewCategory(e.target.value)}
-                    placeholder="e.g. Subscriptions"
+                    placeholder="Suscripciones, mascota…"
                   />
                   <Select value={newCategoryType} onValueChange={setNewCategoryType}>
-                    <SelectTrigger className="w-32">
+                    <SelectTrigger className="w-36">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="expense">Expense</SelectItem>
-                      <SelectItem value="income">Income</SelectItem>
+                      <SelectItem value="expense">Gasto</SelectItem>
+                      <SelectItem value="income">Ingreso</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
-              <Button type="submit" disabled={saving}>
-                {saving ? 'Saving…' : 'Save Changes'}
-              </Button>
-            </form>
-          </div>
-        </CardBox>
-
-        <CardBox>
-          <div className="p-6">
-            <h3 className="font-display text-xl font-normal text-foreground">AI Assistant Settings</h3>
-            <div className="mt-4">
-              <SettingsPanel />
             </div>
           </div>
-        </CardBox>
-      </div>
 
-      {settings && (
-        <CardBox>
-          <div className="p-6">
-            <h3 className="font-display text-xl font-normal text-foreground">Your Categories</h3>
-            <div className="mt-3 flex flex-wrap gap-2">
+          <div className="lg:border-l lg:border-border lg:pl-11">
+            <div className="eyebrow-sm mb-3">Categorías</div>
+            <div className="flex flex-wrap gap-2">
               {settings.categories.map((cat) => (
                 <Badge key={`${cat.id ?? 'builtin'}-${cat.type}-${cat.name}`} variant="gray">
                   {cat.name}
-                  <span className="ml-1 text-xs opacity-70">({cat.type})</span>
+                  <span className="ml-1 text-xs opacity-70">
+                    ({cat.type === 'income' ? 'ingreso' : 'gasto'})
+                  </span>
                 </Badge>
               ))}
             </div>
-            <h3 className="mt-5 font-display text-xl font-normal text-foreground">Transaction Types</h3>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="eyebrow-sm mb-3 mt-5">Tipos</div>
+            <div className="flex flex-wrap gap-2">
               {settings.types.map((t) => (
                 <Badge key={`${t.id ?? 'builtin'}-${t.name}`} variant="gray">
                   {t.name}
@@ -363,8 +257,27 @@ export default function ProfileSettings() {
               ))}
             </div>
           </div>
-        </CardBox>
-      )}
+        </div>
+
+        <div className="flex items-center gap-4">
+          <Button type="submit" disabled={saving}>
+            {saving ? 'Guardando…' : 'Guardar cambios'}
+          </Button>
+          {saved && <span className="text-sm text-success">Guardado.</span>}
+        </div>
+      </form>
+
+      <TwoFactorSection status={settings.two_factor} onChanged={onTwoFactorChanged} />
+
+      {/* AI assistant */}
+      <section className="border-t rule-strong pt-6">
+        <div className="fig mb-1.5 text-[19px] font-medium">Asistente de IA</div>
+        <p className="m-0 mb-5 max-w-[72ch] text-sm leading-relaxed text-inksoft">
+          El proveedor que lee tus movimientos para el análisis. La clave se valida al guardarla,
+          se cifra en el servidor y nunca se devuelve completa.
+        </p>
+        <SettingsPanel />
+      </section>
     </div>
   );
 }

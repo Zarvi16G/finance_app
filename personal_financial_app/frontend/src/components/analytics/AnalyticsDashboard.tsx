@@ -386,14 +386,14 @@ export default function AnalyticsDashboard() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Cash Flow Statement"
-        title="Your money, in and out"
-        description="What came in, what went out, and what is left — over the selected period."
+        eyebrow="Movimientos"
+        title="Tu dinero, entrando y saliendo"
+        description="Lo que entró, lo que salió y lo que queda, en el periodo que elijas."
         actions={
           <Button asChild variant="outline" size="sm">
-            <Link to="/statements/upload">
+            <Link to="/extractos/subir">
               <Icon icon="solar:upload-linear" height={16} width={16} />
-              Import statement
+              Importar extracto
             </Link>
           </Button>
         }
@@ -547,7 +547,7 @@ export default function AnalyticsDashboard() {
                   balance column keeps itself.
                 </p>
                 <Button asChild variant="outline" size="sm" className="mt-4">
-                  <Link to="/statements/upload">Import a statement</Link>
+                  <Link to="/extractos/subir">Import a statement</Link>
                 </Button>
               </div>
             ) : (

@@ -7,6 +7,8 @@ export interface User {
   id: number;
   username: string;
   email: string;
+  first_name: string;
+  last_name: string;
   is_staff: boolean;
   is_active: boolean;
   date_joined: string;
@@ -22,6 +24,24 @@ export interface AuthResponse {
   refresh: string;
   user: User;
 }
+
+/**
+ * What POST /auth/login/ returns when the account has a second factor.
+ *
+ * `mfa_token` is deliberately not a JWT and carries no API authority: it only
+ * proves the password step was cleared, and is spent at /auth/2fa/verify/.
+ */
+export interface MfaChallenge {
+  mfa_required: true;
+  mfa_token: string;
+  method: string;
+}
+
+/** Login either signs you in or hands back a challenge — never both. */
+export type LoginResult = AuthResponse | MfaChallenge;
+
+export const isMfaChallenge = (result: LoginResult): result is MfaChallenge =>
+  (result as MfaChallenge).mfa_required === true;
 
 export interface FinancialRecord {
   id: number;
@@ -84,6 +104,8 @@ export interface Debt {
   debt_type_display: string;
   original_amount: number | string;
   current_balance: number | string;
+  /** The currency the debt is actually denominated in. */
+  currency: string;
   interest_rate: number | string;
   minimum_payment: number | string;
   due_date: number;
@@ -199,10 +221,196 @@ export interface Choice {
   builtin: boolean;
 }
 
+export interface TwoFactorStatus {
+  enabled: boolean;
+  method: string | null;
+  backup_codes_remaining: number;
+  phone_number: string;
+  phone_verified: boolean;
+  /** False while no SMS provider is wired up. The UI says so rather than
+   *  offering a switch that would do nothing. */
+  sms_available: boolean;
+}
+
+export interface TwoFactorEnrollment {
+  secret: string;
+  otpauth_uri: string;
+  qr_code: string;
+}
+
 export interface ProfileSettings {
   currency: string;
+  username: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  phone_number: string;
+  phone_verified: boolean;
+  two_factor: TwoFactorStatus;
   types: Array<{ id: number; name: string; builtin: boolean }>;
   categories: Array<{ id: number; name: string; type: string; builtin: boolean }>;
+}
+
+export interface Currency {
+  code: string;
+  name: string;
+  symbol: string;
+  decimals: number;
+}
+
+export interface CurrencyCatalog {
+  base_currency: string;
+  currencies: Currency[];
+}
+
+/* ---------------------------------------------------------------- Patrimony */
+
+export interface Asset {
+  id: number;
+  name: string;
+  asset_type: string;
+  asset_type_display: string;
+  current_value: number | string;
+  currency: string;
+  is_liquid: boolean;
+  valued_at: string | null;
+  acquired_date: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PatrimonySummary {
+  base_currency: string;
+  total_assets: number;
+  liquid_assets: number;
+  illiquid_assets: number;
+  total_liabilities: number;
+  net_worth: number;
+  /** Null when there are no assets: there is nothing to take a share of. */
+  debt_to_asset: number | null;
+  assets_by_type: Array<{ type: string; total: number; count: number }>;
+  liabilities_by_type: Array<{ type: string; total: number; count: number }>;
+  asset_count: number;
+  liability_count: number;
+}
+
+/* --------------------------------------------------------------- Wealthness */
+
+/** Every band the backend can report. `unknown` is a real answer, not an
+ *  error: it means there is not enough data to measure yet. */
+export type MetricStatus =
+  | 'strong'
+  | 'adequate'
+  | 'healthy'
+  | 'low'
+  | 'high'
+  | 'critical'
+  | 'unknown';
+
+export interface NetFlowPoint {
+  month: string;
+  income: number;
+  expenses: number;
+  net: number;
+  net_worth: number;
+}
+
+export interface WealthnessOverview {
+  base_currency: string;
+  period: { months: number; from: string | null; to: string | null };
+  net_flow: {
+    series: NetFlowPoint[];
+    total_income: number;
+    total_expenses: number;
+    net: number;
+    latest_month_net: number | null;
+  };
+  trend: {
+    direction: 'growing' | 'declining' | 'stable' | 'unknown';
+    change_pct: number | null;
+    basis: 'net_worth' | 'net_flow' | null;
+    from?: string;
+    to?: string;
+    note: string;
+  };
+  savings_rate: { value: number | null; status: MetricStatus; note: string };
+  emergency_fund: {
+    liquid_assets: number;
+    avg_monthly_essentials: number;
+    months_covered: number | null;
+    status: MetricStatus;
+    note: string;
+  };
+  debt_load: { debt_to_income: number | null; status: MetricStatus; note: string };
+  net_worth: {
+    current: number;
+    total_assets: number;
+    total_liabilities: number;
+    liquid_assets: number;
+  };
+}
+
+/* ---------------------------------------------------------- Life experiences */
+
+export interface ExperienceBudgetItem {
+  id: number;
+  goal: number;
+  label: string;
+  category: string;
+  category_display: string;
+  estimated_amount: number | string;
+  actual_amount: number | string | null;
+  variance: number | null;
+  currency: string;
+  is_booked: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExperienceBudget {
+  estimated_total: number;
+  booked_total: number;
+  actual_total: number;
+  items_priced: number;
+  items_booked: number;
+  by_category: Array<{
+    category: string;
+    estimated: number;
+    count: number;
+    percentage: number;
+  }>;
+  /** What the user decided to save. */
+  target_amount: number;
+  saved_amount: number;
+  still_to_save: number;
+  /** Itemised plan minus target. Positive means the plan costs more than the
+   *  target — a plan with a hole in it. */
+  budget_vs_target: number;
+  progress_percentage: number;
+}
+
+export interface Experience {
+  id: number;
+  title: string;
+  status: string;
+  location: string;
+  currency: string;
+  start_date: string | null;
+  end_date: string | null;
+  experience_date: string | null;
+  description: string;
+  budget: ExperienceBudget;
+}
+
+export interface LifeExperiences {
+  base_currency: string;
+  count: number;
+  total_estimated: number;
+  total_saved: number;
+  total_still_to_save: number;
+  experiences: Experience[];
 }
 
 export interface CategorySuggestion {

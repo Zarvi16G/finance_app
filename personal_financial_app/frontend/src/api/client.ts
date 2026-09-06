@@ -20,9 +20,17 @@ export const apiClient = axios.create({
 let isRefreshing = false;
 let queue: Array<(token: string | null) => void> = [];
 
+/**
+ * Calls whose own 401 is meaningful and must reach the caller untouched.
+ *
+ * The second-factor step belongs here: a wrong code answers 401, and that is
+ * an answer for the login screen to show — not a signal that some access
+ * token expired. Without this, a stale refresh token left in storage would
+ * make the interceptor try to refresh a session that does not exist yet.
+ */
 const isAuthCall = (url?: string) => {
   if (!url) return false;
-  return /\/auth\/(login|register|refresh|logout)\/?$/.test(url);
+  return /\/auth\/(login|register|refresh|logout|2fa\/verify)\/?$/.test(url);
 };
 
 const flushQueue = (token: string | null) => {

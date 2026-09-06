@@ -57,6 +57,10 @@ def get_user_payload(user: User) -> dict:
         'id': user.pk,
         'username': user.username,
         'email': user.email,
+        # The client greets people by their first name when it has one, so it
+        # needs these without a second round trip to /api/profile/.
+        'first_name': user.first_name,
+        'last_name': user.last_name,
         'is_staff': user.is_staff,
         'date_joined': user.date_joined.isoformat() if user.date_joined else None,
     }

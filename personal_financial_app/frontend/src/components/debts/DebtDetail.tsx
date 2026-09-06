@@ -147,7 +147,7 @@ export default function DebtDetail() {
           description="This entry could not be loaded."
           actions={
             <Button asChild variant="outline">
-              <Link to="/debts">
+              <Link to="/deudas">
                 <Icon icon="solar:alt-arrow-left-linear" height={16} width={16} />
                 Back to registry
               </Link>
@@ -177,7 +177,7 @@ export default function DebtDetail() {
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={statusVariant(debt.status)}>{debt.status_display}</Badge>
             <Button asChild variant="outline">
-              <Link to="/debts">
+              <Link to="/deudas">
                 <Icon icon="solar:alt-arrow-left-linear" height={16} width={16} />
                 Back to registry
               </Link>

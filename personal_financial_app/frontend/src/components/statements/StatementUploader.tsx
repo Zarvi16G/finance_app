@@ -70,7 +70,7 @@ export default function StatementUploader() {
       if (statement.status === 'completed') {
         navigate(`/statements/${statement.id}/review`);
       } else {
-        navigate('/statements');
+        navigate('/extractos');
       }
     } catch (err) {
       setError(getErrorMessage(err));
@@ -170,7 +170,7 @@ export default function StatementUploader() {
               )}
             </Button>
             <Button asChild variant="outline">
-              <Link to="/statements">Cancel</Link>
+              <Link to="/extractos">Cancel</Link>
             </Button>
           </div>
         </form>

@@ -124,7 +124,7 @@ export default function StatementList() {
         description="Uploaded statements and extraction status — import a PDF to add transactions."
         actions={
           <Button asChild>
-            <Link to="/statements/upload">
+            <Link to="/extractos/subir">
               <Icon icon="solar:upload-linear" height={18} width={18} />
               Upload Statement
             </Link>
@@ -216,7 +216,7 @@ export default function StatementList() {
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button asChild variant="outline" size="sm">
-                        <Link to={`/statements/${st.id}/review`}>Review</Link>
+                        <Link to={`/extractos/${st.id}/revisar`}>Review</Link>
                       </Button>
                       <Button
                         variant="ghost"
