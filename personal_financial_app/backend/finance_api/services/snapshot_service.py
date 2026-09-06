@@ -32,8 +32,10 @@ def compute_monthly_snapshot(date, user):
         owner=user, date__year=date.year, date__month=date.month
     )
 
-    total_income = float(currency_service.sum_in(records.filter(type='income'), base))
-    total_expenses = float(currency_service.sum_in(records.filter(type='expense'), base))
+    income_total = currency_service.sum_in(records.filter(type='income'), base)
+    expense_total = currency_service.sum_in(records.filter(type='expense'), base)
+    total_income = float(income_total)
+    total_expenses = float(expense_total)
     net_cash_flow = total_income - total_expenses
     savings_rate = (net_cash_flow / total_income * 100) if total_income > 0 else 0
 
@@ -62,7 +64,8 @@ def compute_monthly_snapshot(date, user):
 
     # Debts
     debts = Debt.objects.filter(owner=user, status='active')
-    total_min_payment = float(currency_service.sum_in(debts, base, field='minimum_payment'))
+    min_payment_total = currency_service.sum_in(debts, base, field='minimum_payment')
+    total_min_payment = float(min_payment_total)
 
     # Patrimony: assets minus everything still owed (not just active debts).
     assets_total, liabilities_total, net_worth = patrimony_service.net_worth_for(user, base)
@@ -77,9 +80,10 @@ def compute_monthly_snapshot(date, user):
 
     # Liquidity ratios
     current_ratio = (total_income / total_min_payment) if total_min_payment > 0 else None
-    essential_expenses = float(currency_service.sum_in(
+    essential_total = currency_service.sum_in(
         records.filter(type='expense', category__in=ESSENTIAL_CATEGORIES), base
-    ))
+    )
+    essential_expenses = float(essential_total)
     quick_ratio = (total_income - essential_expenses) / total_min_payment if total_min_payment > 0 else None
     cash_ratio = current_ratio
 
@@ -102,6 +106,15 @@ def compute_monthly_snapshot(date, user):
     income_growth_yoy = ((total_income - prev_income) / prev_income * 100) if prev_income > 0 else 0
     expense_growth_yoy = ((total_expenses - prev_expenses) / prev_expenses * 100) if prev_expenses > 0 else 0
     net_worth_growth = income_growth_yoy - expense_growth_yoy
+
+    # Whether every amount that went into this month could be expressed in
+    # the base currency. Recorded because the snapshot outlives the request.
+    snapshot.conversion_complete = all(
+        total.complete for total in (
+            income_total, expense_total, min_payment_total, essential_total,
+            assets_total, liabilities_total,
+        )
+    )
 
     # Update snapshot
     snapshot.total_income = total_income

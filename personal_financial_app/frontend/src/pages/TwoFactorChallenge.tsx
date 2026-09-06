@@ -12,6 +12,7 @@
  * which are different problems with different fixes.
  */
 import { useEffect, useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import AuthLayout from '../layouts/AuthLayout';
@@ -32,6 +33,7 @@ const mmss = (total: number) => {
 };
 
 export default function TwoFactorChallenge() {
+  const { t } = useTranslation();
   const { completeTwoFactor } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -76,18 +78,16 @@ export default function TwoFactorChallenge() {
 
   return (
     <AuthLayout
-      headline="Tu contraseña ya fue aceptada."
-      blurb="Falta el segundo paso. Hasta que confirmes el código, esta sesión no tiene acceso a ninguno de tus datos — el paso intermedio no otorga permisos por sí solo."
-      footnote="Verificación en dos pasos"
+      headline={t('auth.mfaHeadline')}
+      blurb={t('auth.mfaBlurb')}
+      footnote={t('auth.mfaFootnote')}
     >
-      <p className="letterhead mb-3.5">Paso 2 de 2</p>
+      <p className="letterhead mb-3.5">{t('auth.mfaStep')}</p>
       <h1 className="fig m-0 text-[32px] font-medium">
-        {useBackup ? 'Usa un código de recuperación' : 'Introduce tu código'}
+        {t(useBackup ? 'auth.backupTitle' : 'auth.mfaTitle')}
       </h1>
       <p className="m-0 mt-3 text-[15px] leading-relaxed text-inksoft">
-        {useBackup
-          ? 'Cualquiera de los diez que guardaste al activar la verificación. Cada uno sirve una sola vez.'
-          : 'El de seis dígitos que muestra tu app de autenticación.'}
+        {t(useBackup ? 'auth.backupSubtitle' : 'auth.mfaSubtitle')}
       </p>
 
       <form className="mt-8" onSubmit={onSubmit}>
@@ -100,7 +100,7 @@ export default function TwoFactorChallenge() {
             autoComplete="one-time-code"
             placeholder="a3f9c1e072"
             className="font-mono tracking-[0.08em]"
-            aria-label="Código de recuperación"
+            aria-label={t('auth.backupCodeLabel')}
           />
         ) : (
           <CodeInput
@@ -117,13 +117,13 @@ export default function TwoFactorChallenge() {
           <Icon icon="solar:clock-circle-linear" height={14} width={14} />
           {expired ? (
             <span className="text-error">
-              Este intento caducó. Vuelve a iniciar sesión para empezar de nuevo.
+              {t('auth.expired')}
             </span>
           ) : (
             <span>
-              Este intento caduca en{' '}
-              <span className="fig text-foreground">{mmss(remaining)}</span>. Después habrá que
-              empezar de nuevo.
+              {t('auth.expiresIn')}{' '}
+              <span className="fig text-foreground">{mmss(remaining)}</span>
+              {t('auth.expiresAfter')}
             </span>
           )}
         </div>
@@ -135,7 +135,7 @@ export default function TwoFactorChallenge() {
           className="mt-6 w-full py-3.5 text-[15px]"
           disabled={submitting || expired || (useBackup ? !backupCode.trim() : code.length < 6)}
         >
-          {submitting ? 'Verificando…' : 'Entrar'}
+          {submitting ? t('auth.verifying') : t('auth.signIn')}
         </Button>
       </form>
 
@@ -149,12 +149,11 @@ export default function TwoFactorChallenge() {
           className="flex items-center gap-2 text-sm font-semibold text-primary hover:underline"
         >
           <Icon icon="solar:lock-keyhole-minimalistic-linear" height={15} width={15} />
-          {useBackup ? 'Volver al código de la app' : 'Usar un código de recuperación'}
+          {t(useBackup ? 'auth.backToApp' : 'auth.useBackup')}
         </button>
         {!useBackup && (
           <p className="m-0 mt-2.5 text-[13px] leading-relaxed text-muted-foreground">
-            Si perdiste el teléfono, cualquiera de los diez códigos que guardaste sirve — una sola
-            vez cada uno.
+            {t('auth.backupHint')}
           </p>
         )}
       </div>
@@ -165,7 +164,7 @@ export default function TwoFactorChallenge() {
           onClick={() => navigate('/login', { replace: true })}
           className="text-[13px] text-muted-foreground hover:text-foreground"
         >
-          Volver e iniciar sesión con otra cuenta
+          {t('auth.otherAccount')}
         </button>
       </div>
     </AuthLayout>

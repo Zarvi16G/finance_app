@@ -11,6 +11,7 @@
  * Categories come from /analytics/, which is snapshot-backed.
  */
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import {
   CartesianGrid,
@@ -24,6 +25,7 @@ import {
 import { Icon } from '@iconify/react';
 import PageHeader from '../shared/PageHeader';
 import BaseCurrencyBadge from '../shared/BaseCurrencyBadge';
+import ConversionNotice from '../shared/ConversionNotice';
 import StatusBadge from '../shared/StatusBadge';
 import { Figure } from '../shared/Figure';
 import { wealthnessApi } from '../../api/wealthness';
@@ -40,15 +42,16 @@ import {
 import { useAuth } from '../../auth/AuthContext';
 import type { DashboardData, WealthnessOverview } from '../../types';
 
-function greeting(): string {
+function greetingKey(): string {
   const hour = new Date().getHours();
-  if (hour < 12) return 'Buenos días';
-  if (hour < 19) return 'Buenas tardes';
-  return 'Buenas noches';
+  if (hour < 12) return 'dashboard.goodMorning';
+  if (hour < 19) return 'dashboard.goodAfternoon';
+  return 'dashboard.goodEvening';
 }
 
-const currentMonthLabel = () => {
-  const label = new Date().toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
+/** "Septiembre de 2026" / "September 2026", capitalised as a heading. */
+const currentMonthLabel = (locale: string) => {
+  const label = new Date().toLocaleDateString(locale, { month: 'long', year: 'numeric' });
   return label.charAt(0).toUpperCase() + label.slice(1);
 };
 
@@ -76,7 +79,9 @@ function HealthCell({
   value,
   status,
   unknownNote,
+  notDetermined,
 }: {
+  notDetermined: string;
   label: string;
   value: string | null;
   status: WealthnessOverview['savings_rate']['status'];
@@ -87,7 +92,7 @@ function HealthCell({
       <div className="eyebrow-sm mb-2.5">{label}</div>
       {value === null ? (
         <div>
-          <span className="fig text-[23px] font-medium text-secondary">Sin determinar</span>
+          <span className="fig text-[23px] font-medium text-secondary">{notDetermined}</span>
           <p className="mt-1.5 max-w-[34ch] text-xs leading-relaxed text-muted-foreground">
             {unknownNote}
           </p>
@@ -103,6 +108,7 @@ function HealthCell({
 }
 
 export default function Dashboard() {
+  const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const [health, setHealth] = useState<WealthnessOverview | null>(null);
   const [analytics, setAnalytics] = useState<DashboardData | null>(null);
@@ -134,11 +140,11 @@ export default function Dashboard() {
     };
   }, []);
 
-  if (loading) return <p className="text-sm text-muted-foreground">Cargando tu resumen…</p>;
+  if (loading) return <p className="text-sm text-muted-foreground">{t('dashboard.loading')}</p>;
   if (error || !health) {
     return (
       <p className="border border-error/40 bg-lighterror p-4 text-sm text-error">
-        {error ?? 'No se pudo cargar el resumen.'}
+        {error ?? t('dashboard.loadFailed')}
       </p>
     );
   }
@@ -155,14 +161,20 @@ export default function Dashboard() {
   return (
     <div className="flex flex-col gap-9">
       <PageHeader
-        eyebrow={currentMonthLabel()}
-        title={displayName ? `${greeting()}, ${displayName}.` : `${greeting()}.`}
+        eyebrow={currentMonthLabel(i18n.resolvedLanguage ?? 'es')}
+        title={
+          displayName
+            ? t('dashboard.greeting', { greeting: t(greetingKey()), name: displayName })
+            : t('dashboard.greetingAnonymous', { greeting: t(greetingKey()) })
+        }
         actions={<BaseCurrencyBadge currency={base} />}
       />
 
+      <ConversionNotice report={health.conversion} baseCurrency={base} />
+
       {/* Net worth and the month's three figures */}
       <div className="grid border-y rule-strong border-b-border md:grid-cols-[1.35fr_1fr_1fr_1fr]">
-        <StripCell label="Patrimonio neto" className="pl-0 md:border-r md:border-border">
+        <StripCell label={t('dashboard.netWorth')} className="pl-0 md:border-r md:border-border">
           <div className="fig text-[42px] font-medium leading-none">
             {fmtFigure(health.net_worth.current, base)}
           </div>
@@ -183,25 +195,28 @@ export default function Dashboard() {
                   health.trend.direction === 'declining' ? 'text-error' : 'text-success'
                 }`}
               >
-                {fmtSignedPercent(health.trend.change_pct)} en {health.period.months} meses
+                {t('dashboard.changeOverMonths', {
+                  change: fmtSignedPercent(health.trend.change_pct),
+                  count: health.period.months,
+                })}
               </span>
             </div>
           )}
         </StripCell>
 
-        <StripCell label="Ingresos del mes" className="md:border-r md:border-border">
+        <StripCell label={t('dashboard.monthIncome')} className="md:border-r md:border-border">
           <Figure tone="income" className="text-[26px] font-medium">
             {latest ? fmtFigure(latest.income, base) : '—'}
           </Figure>
         </StripCell>
 
-        <StripCell label="Gastos del mes" className="md:border-r md:border-border">
+        <StripCell label={t('dashboard.monthExpenses')} className="md:border-r md:border-border">
           <Figure tone="expense" className="text-[26px] font-medium">
             {latest ? fmtFigure(latest.expenses, base) : '—'}
           </Figure>
         </StripCell>
 
-        <StripCell label="Flujo neto" className="pr-0">
+        <StripCell label={t('dashboard.netFlow')} className="pr-0">
           <Figure className="text-[26px] font-medium">
             {latest ? fmtSigned(latest.net, base) : '—'}
           </Figure>
@@ -212,25 +227,24 @@ export default function Dashboard() {
       <div className="grid gap-11 lg:grid-cols-[1.6fr_1fr]">
         <div>
           <div className="mb-5 flex items-baseline justify-between">
-            <div className="fig text-[19px] font-medium">Ingresos y gastos</div>
+            <div className="fig text-[19px] font-medium">{t('dashboard.incomeAndExpenses')}</div>
             <div className="flex gap-5 text-xs text-inksoft">
               <span className="flex items-center gap-2">
                 <span className="h-0.5 w-5" style={{ background: palette.income }} />
-                Ingresos
+                {t('dashboard.income')}
               </span>
               <span className="flex items-center gap-2">
                 <span className="h-0.5 w-5" style={{ background: palette.expense }} />
-                Gastos
+                {t('dashboard.expenses')}
               </span>
             </div>
           </div>
 
           {series.length === 0 ? (
             <p className="border border-input bg-card p-6 text-sm text-inksoft">
-              Aún no hay meses cerrados que dibujar. Las instantáneas mensuales se generan a partir
-              de tus movimientos.{' '}
+              {t('dashboard.noMonths')}{' '}
               <Link to="/movimientos" className="font-semibold text-primary hover:underline">
-                Registrar movimientos
+                {t('dashboard.recordMovements')}
               </Link>
             </p>
           ) : (
@@ -281,9 +295,9 @@ export default function Dashboard() {
         </div>
 
         <div>
-          <div className="fig mb-5 text-[19px] font-medium">Gasto por categoría</div>
+          <div className="fig mb-5 text-[19px] font-medium">{t('dashboard.expenseByCategory')}</div>
           {categories.length === 0 ? (
-            <p className="text-sm text-inksoft">Sin gastos categorizados en el periodo.</p>
+            <p className="text-sm text-inksoft">{t('dashboard.noCategories')}</p>
           ) : (
             <div className="flex flex-col gap-4">
               {categories.map((row, i) => (
@@ -314,37 +328,40 @@ export default function Dashboard() {
       {/* Health strip */}
       <div className="grid gap-8 border-t rule-strong pt-6 md:grid-cols-4">
         <HealthCell
-          label="Tasa de ahorro"
+          label={t('dashboard.savingsRate')}
           value={health.savings_rate.value === null ? null : fmtPercent(health.savings_rate.value)}
           status={health.savings_rate.status}
-          unknownNote="No hay ingresos registrados en el periodo."
+          notDetermined={t('common.notDetermined')}
+          unknownNote={t('dashboard.unknownSavings')}
         />
         <HealthCell
-          label="Fondo de emergencia"
+          label={t('dashboard.emergencyFund')}
           value={
             health.emergency_fund.months_covered === null
               ? null
-              : `${fmtNumber(health.emergency_fund.months_covered)} meses`
+              : `${fmtNumber(health.emergency_fund.months_covered)} ${t('common.months')}`
           }
           status={health.emergency_fund.status}
-          unknownNote="Sin gastos registrados no hay contra qué medir tus activos líquidos."
+          notDetermined={t('common.notDetermined')}
+          unknownNote={t('dashboard.unknownFund')}
         />
         <HealthCell
-          label="Deuda / ingreso"
+          label={t('dashboard.debtToIncome')}
           value={
             health.debt_load.debt_to_income === null
               ? null
               : fmtPercent(health.debt_load.debt_to_income)
           }
           status={health.debt_load.status}
-          unknownNote="Hace falta una instantánea mensual con ingresos."
+          notDetermined={t('common.notDetermined')}
+          unknownNote={t('dashboard.unknownDebt')}
         />
         <div className="flex items-end md:justify-end">
           <Link
             to="/wealthness"
             className="flex items-center gap-2 text-sm font-semibold text-primary hover:underline"
           >
-            Ver salud financiera
+            {t('dashboard.seeHealth')}
             <Icon icon="solar:arrow-right-linear" height={14} width={14} />
           </Link>
         </div>

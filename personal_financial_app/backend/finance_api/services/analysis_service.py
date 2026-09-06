@@ -64,10 +64,10 @@ def _build_financial_context(records, goals, base_currency=None):
         goals_data.append({
             'title': goal.title,
             'target_amount': float(
-                currency_service.convert_safe(goal.target_amount, goal.currency or base, base)
+                currency_service.Total.converted(goal.target_amount, goal.currency or base, base)
             ),
             'current_amount': float(
-                currency_service.convert_safe(goal.current_amount, goal.currency or base, base)
+                currency_service.Total.converted(goal.current_amount, goal.currency or base, base)
             ),
             'progress_percentage': round(progress, 2),
             'status': goal.status,

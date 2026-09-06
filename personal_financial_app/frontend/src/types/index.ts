@@ -194,6 +194,7 @@ export interface DashboardData {
     net_cash_flow: number;
     savings_rate: number;
   };
+  conversion: ConversionReport;
 }
 
 export interface AIAnalysisResult {
@@ -258,6 +259,21 @@ export interface Currency {
   decimals: number;
 }
 
+/**
+ * Whether an endpoint's totals could be fully expressed in the base currency.
+ *
+ * The backend excludes an amount it cannot convert rather than adding it
+ * unconverted, so a total is either right or visibly partial. `complete:
+ * false` means figures on this screen are understated, and the named
+ * currencies are why.
+ */
+export interface ConversionReport {
+  complete: boolean;
+  unconvertible_currencies: string[];
+  /** Stored months computed while a rate was missing (Wealthness only). */
+  partial_months?: string[];
+}
+
 export interface CurrencyCatalog {
   base_currency: string;
   currencies: Currency[];
@@ -293,6 +309,7 @@ export interface PatrimonySummary {
   liabilities_by_type: Array<{ type: string; total: number; count: number }>;
   asset_count: number;
   liability_count: number;
+  conversion: ConversionReport;
 }
 
 /* --------------------------------------------------------------- Wealthness */
@@ -314,6 +331,7 @@ export interface NetFlowPoint {
   expenses: number;
   net: number;
   net_worth: number;
+  conversion_complete: boolean;
 }
 
 export interface WealthnessOverview {
@@ -349,6 +367,7 @@ export interface WealthnessOverview {
     total_liabilities: number;
     liquid_assets: number;
   };
+  conversion: ConversionReport;
 }
 
 /* ---------------------------------------------------------- Life experiences */
@@ -389,6 +408,7 @@ export interface ExperienceBudget {
    *  target — a plan with a hole in it. */
   budget_vs_target: number;
   progress_percentage: number;
+  conversion: ConversionReport;
 }
 
 export interface Experience {
@@ -411,6 +431,7 @@ export interface LifeExperiences {
   total_saved: number;
   total_still_to_save: number;
   experiences: Experience[];
+  conversion: ConversionReport;
 }
 
 export interface CategorySuggestion {

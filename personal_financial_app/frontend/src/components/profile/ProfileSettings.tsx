@@ -9,6 +9,7 @@
  * displayed, never written over the original amount.
  */
 import { useEffect, useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import PageHeader from '../shared/PageHeader';
 import TwoFactorSection from './TwoFactorSection';
 import { SettingsPanel } from './AiSettingsPanel';
@@ -23,6 +24,7 @@ import { getErrorMessage } from '../../api/client';
 import type { Currency, ProfileSettings as ProfileSettingsType, TwoFactorStatus } from '../../types';
 
 export default function ProfileSettings() {
+  const { t } = useTranslation();
   const [settings, setSettings] = useState<ProfileSettingsType | null>(null);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [identity, setIdentity] = useState({
@@ -90,7 +92,7 @@ export default function ProfileSettings() {
     return error ? (
       <p className="border border-error/40 bg-lighterror p-4 text-sm text-error">{error}</p>
     ) : (
-      <p className="text-sm text-muted-foreground">Cargando tu perfil…</p>
+      <p className="text-sm text-muted-foreground">{t('profile.loading')}</p>
     );
   }
 
@@ -100,7 +102,7 @@ export default function ProfileSettings() {
 
   return (
     <div className="flex flex-col gap-8">
-      <PageHeader eyebrow="Perfil y seguridad" title="Tu cuenta" />
+      <PageHeader eyebrow={t('profile.eyebrow')} title={t('profile.title')} />
 
       {error && <p className="bg-lighterror px-3 py-2 text-sm text-error">{error}</p>}
 
@@ -108,11 +110,11 @@ export default function ProfileSettings() {
         {/* Identity + base currency */}
         <div className="grid gap-11 border-t rule-strong pt-6 lg:grid-cols-2">
           <div>
-            <div className="fig mb-4 text-[19px] font-medium">Datos personales</div>
+            <div className="fig mb-4 text-[19px] font-medium">{t('profile.personalDetails')}</div>
             <div className="flex flex-col gap-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="p-first">Nombre</Label>
+                  <Label htmlFor="p-first">{t('profile.firstName')}</Label>
                   <Input
                     id="p-first"
                     className="mt-2"
@@ -121,7 +123,7 @@ export default function ProfileSettings() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="p-last">Apellido</Label>
+                  <Label htmlFor="p-last">{t('profile.lastName')}</Label>
                   <Input
                     id="p-last"
                     className="mt-2"
@@ -131,7 +133,7 @@ export default function ProfileSettings() {
                 </div>
               </div>
               <div>
-                <Label htmlFor="p-email">Correo</Label>
+                <Label htmlFor="p-email">{t('profile.email')}</Label>
                 <Input
                   id="p-email"
                   type="email"
@@ -141,7 +143,7 @@ export default function ProfileSettings() {
                 />
               </div>
               <div>
-                <Label htmlFor="p-phone">Teléfono</Label>
+                <Label htmlFor="p-phone">{t('profile.phone')}</Label>
                 <div className="mt-2 flex items-center gap-3">
                   <Input
                     id="p-phone"
@@ -149,7 +151,7 @@ export default function ProfileSettings() {
                     className="flex-grow"
                     value={identity.phone_number}
                     onChange={(e) => setIdentity({ ...identity, phone_number: e.target.value })}
-                    placeholder="+57 300 123 4567"
+                    placeholder={t('profile.phonePlaceholder')}
                   />
                   {identity.phone_number && !phoneChanged && (
                     <span
@@ -157,19 +159,19 @@ export default function ProfileSettings() {
                         settings.phone_verified ? 'text-success' : 'text-warning'
                       }`}
                     >
-                      {settings.phone_verified ? 'Verificado' : 'Sin verificar'}
+                      {t(settings.phone_verified ? 'profile.verified' : 'profile.unverified')}
                     </span>
                   )}
                 </div>
                 <p className="m-0 mt-2 text-xs leading-relaxed text-muted-foreground">
-                  Cambiar el número lo marca como no verificado otra vez.
+                  {t('profile.phoneNote')}
                 </p>
               </div>
             </div>
           </div>
 
           <div className="lg:border-l lg:border-border lg:pl-11">
-            <div className="fig mb-4 text-[19px] font-medium">Moneda base</div>
+            <div className="fig mb-4 text-[19px] font-medium">{t('profile.baseCurrency')}</div>
             <Select value={currency} onValueChange={setCurrency}>
               <SelectTrigger id="p-currency" className="h-auto py-3">
                 <SelectValue />
@@ -187,12 +189,10 @@ export default function ProfileSettings() {
               </SelectContent>
             </Select>
             <p className="m-0 mt-3 text-sm leading-relaxed text-inksoft">
-              Todos los totales se leen en esta moneda. Cada movimiento conserva la moneda en la
-              que ocurrió realmente; la conversión se calcula al mostrarlo, nunca se guarda encima
-              del monto original.
+              {t('profile.baseCurrencyNote')}
             </p>
             <p className="m-0 mt-3.5 text-[13px] leading-relaxed text-muted-foreground">
-              Las tasas se actualizan una vez al día desde el proveedor configurado en el servidor.
+              {t('profile.ratesNote')}
             </p>
           </div>
         </div>
@@ -200,35 +200,35 @@ export default function ProfileSettings() {
         {/* Vocabulary */}
         <div className="grid gap-11 border-t rule-strong pt-6 lg:grid-cols-2">
           <div>
-            <div className="fig mb-4 text-[19px] font-medium">Tus categorías y tipos</div>
+            <div className="fig mb-4 text-[19px] font-medium">{t('profile.vocabulary')}</div>
             <div className="flex flex-col gap-4">
               <div>
-                <Label htmlFor="p-type">Añadir tipo de movimiento</Label>
+                <Label htmlFor="p-type">{t('profile.addType')}</Label>
                 <Input
                   id="p-type"
                   className="mt-2"
                   value={newType}
                   onChange={(e) => setNewType(e.target.value)}
-                  placeholder="Bonificación, reembolso…"
+                  placeholder={t('profile.addTypePlaceholder')}
                 />
               </div>
               <div>
-                <Label htmlFor="p-cat">Añadir categoría</Label>
+                <Label htmlFor="p-cat">{t('profile.addCategory')}</Label>
                 <div className="mt-2 flex flex-wrap gap-3">
                   <Input
                     id="p-cat"
                     className="min-w-[180px] flex-grow"
                     value={newCategory}
                     onChange={(e) => setNewCategory(e.target.value)}
-                    placeholder="Suscripciones, mascota…"
+                    placeholder={t('profile.addCategoryPlaceholder')}
                   />
                   <Select value={newCategoryType} onValueChange={setNewCategoryType}>
                     <SelectTrigger className="w-36">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="expense">Gasto</SelectItem>
-                      <SelectItem value="income">Ingreso</SelectItem>
+                      <SelectItem value="expense">{t('profile.expense')}</SelectItem>
+                      <SelectItem value="income">{t('profile.income')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -237,18 +237,18 @@ export default function ProfileSettings() {
           </div>
 
           <div className="lg:border-l lg:border-border lg:pl-11">
-            <div className="eyebrow-sm mb-3">Categorías</div>
+            <div className="eyebrow-sm mb-3">{t('profile.categories')}</div>
             <div className="flex flex-wrap gap-2">
               {settings.categories.map((cat) => (
                 <Badge key={`${cat.id ?? 'builtin'}-${cat.type}-${cat.name}`} variant="gray">
                   {cat.name}
                   <span className="ml-1 text-xs opacity-70">
-                    ({cat.type === 'income' ? 'ingreso' : 'gasto'})
+                    ({t(cat.type === 'income' ? 'profile.income' : 'profile.expense')})
                   </span>
                 </Badge>
               ))}
             </div>
-            <div className="eyebrow-sm mb-3 mt-5">Tipos</div>
+            <div className="eyebrow-sm mb-3 mt-5">{t('profile.types')}</div>
             <div className="flex flex-wrap gap-2">
               {settings.types.map((t) => (
                 <Badge key={`${t.id ?? 'builtin'}-${t.name}`} variant="gray">
@@ -261,9 +261,9 @@ export default function ProfileSettings() {
 
         <div className="flex items-center gap-4">
           <Button type="submit" disabled={saving}>
-            {saving ? 'Guardando…' : 'Guardar cambios'}
+            {saving ? t('common.saving') : t('common.saveChanges')}
           </Button>
-          {saved && <span className="text-sm text-success">Guardado.</span>}
+          {saved && <span className="text-sm text-success">{t('common.saved')}</span>}
         </div>
       </form>
 
@@ -271,10 +271,9 @@ export default function ProfileSettings() {
 
       {/* AI assistant */}
       <section className="border-t rule-strong pt-6">
-        <div className="fig mb-1.5 text-[19px] font-medium">Asistente de IA</div>
+        <div className="fig mb-1.5 text-[19px] font-medium">{t('profile.aiAssistant')}</div>
         <p className="m-0 mb-5 max-w-[72ch] text-sm leading-relaxed text-inksoft">
-          El proveedor que lee tus movimientos para el análisis. La clave se valida al guardarla,
-          se cifra en el servidor y nunca se devuelve completa.
+          {t('profile.aiNote')}
         </p>
         <SettingsPanel />
       </section>

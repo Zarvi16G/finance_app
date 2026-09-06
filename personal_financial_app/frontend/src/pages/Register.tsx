@@ -5,6 +5,7 @@
  * token pair; the challenge branch belongs to Login only.
  */
 import { useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import AuthLayout from '../layouts/AuthLayout';
 import { Button } from '../components/ui/button';
@@ -14,6 +15,7 @@ import { useAuth } from '../auth/AuthContext';
 import { getErrorMessage } from '../api/client';
 
 export default function Register() {
+  const { t } = useTranslation();
   const { register } = useAuth();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
@@ -27,7 +29,7 @@ export default function Register() {
     e.preventDefault();
     setError('');
     if (password !== confirm) {
-      setError('Las contraseñas no coinciden.');
+      setError(t('auth.passwordsDoNotMatch'));
       return;
     }
     setSubmitting(true);
@@ -43,19 +45,19 @@ export default function Register() {
 
   return (
     <AuthLayout
-      headline="Una cuenta, tu patrimonio entero."
-      blurb="Movimientos, deudas, activos y metas en el mismo lugar, en las monedas en que realmente ocurren. Sin comisiones y sin conectar ningún banco."
-      footnote="Cuenta nueva"
+      headline={t('auth.registerHeadline')}
+      blurb={t('auth.registerBlurb')}
+      footnote={t('auth.registerFootnote')}
     >
-      <p className="letterhead mb-3.5">Crear cuenta</p>
-      <h1 className="fig m-0 text-[32px] font-medium">Empieza tu registro</h1>
+      <p className="letterhead mb-3.5">{t('auth.createAccount')}</p>
+      <h1 className="fig m-0 text-[32px] font-medium">{t('auth.registerTitle')}</h1>
       <p className="m-0 mt-3 text-[15px] leading-relaxed text-inksoft">
-        Podrás activar la verificación en dos pasos desde tu perfil en cuanto entres.
+        {t('auth.registerSubtitle')}
       </p>
 
       <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
         <div>
-          <Label htmlFor="username">Usuario</Label>
+          <Label htmlFor="username">{t('auth.username')}</Label>
           <Input
             id="username"
             type="text"
@@ -68,7 +70,8 @@ export default function Register() {
         </div>
         <div>
           <Label htmlFor="email">
-            Correo <span className="font-normal text-muted-foreground">(opcional)</span>
+            {t('auth.email')}{' '}
+            <span className="font-normal text-muted-foreground">{t('auth.emailOptional')}</span>
           </Label>
           <Input
             id="email"
@@ -81,7 +84,8 @@ export default function Register() {
         </div>
         <div>
           <Label htmlFor="regpwd">
-            Contraseña <span className="font-normal text-muted-foreground">(8 o más)</span>
+            {t('auth.password')}{' '}
+            <span className="font-normal text-muted-foreground">{t('auth.passwordHint')}</span>
           </Label>
           <Input
             id="regpwd"
@@ -95,7 +99,7 @@ export default function Register() {
           />
         </div>
         <div>
-          <Label htmlFor="confirmpwd">Repite la contraseña</Label>
+          <Label htmlFor="confirmpwd">{t('auth.repeatPassword')}</Label>
           <Input
             id="confirmpwd"
             type="password"
@@ -110,14 +114,14 @@ export default function Register() {
         {error && <p className="bg-lighterror px-3 py-2 text-sm text-error">{error}</p>}
 
         <Button type="submit" className="w-full py-3.5 text-[15px]" disabled={submitting}>
-          {submitting ? 'Creando cuenta…' : 'Crear cuenta'}
+          {submitting ? t('auth.creatingAccount') : t('auth.createAccount')}
         </Button>
       </form>
 
       <div className="mt-7 flex items-center justify-between border-t border-border pt-5">
-        <p className="text-sm text-muted-foreground">¿Ya tienes cuenta?</p>
+        <p className="text-sm text-muted-foreground">{t('auth.haveAccount')}</p>
         <Link to="/login" className="text-sm font-semibold text-primary hover:underline">
-          Entrar
+          {t('auth.signIn')}
         </Link>
       </div>
     </AuthLayout>

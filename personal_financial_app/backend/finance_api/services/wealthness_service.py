@@ -20,6 +20,7 @@ from decimal import Decimal
 
 from ..models import Asset, FinancialRecord, FinancialSnapshot
 from . import currency_service, patrimony_service
+from .currency_service import Total
 from .snapshot_service import ESSENTIAL_CATEGORIES
 
 # Months of essential spending covered by liquid assets.
@@ -71,8 +72,8 @@ def _months_back(reference: date, months: int) -> date:
 
 
 def average_monthly_expenses(user, base: str, essential_only: bool = True,
-                             months: int = LOOKBACK_MONTHS, today: date = None) -> Decimal:
-    """Mean monthly spend over the recent past.
+                             months: int = LOOKBACK_MONTHS, today: date = None) -> Total:
+    """Mean monthly spend over the recent past, as a Total in `base`.
 
     Averaged rather than taken from the latest month so one unusual month —
     a flight booked, a deposit paid — does not swing the whole picture.
@@ -86,7 +87,7 @@ def average_monthly_expenses(user, base: str, essential_only: bool = True,
         records = records.filter(category__in=ESSENTIAL_CATEGORIES)
 
     total = currency_service.sum_in(records, base)
-    return (total / Decimal(months)) if months else Decimal('0')
+    return (total / months) if months else Total.zero(base)
 
 
 def emergency_fund(user, base: str, today: date = None) -> dict:
@@ -99,6 +100,8 @@ def emergency_fund(user, base: str, today: date = None) -> dict:
 
     months_covered = None
     if monthly > 0:
+        # Total / Total is a plain ratio: months of cover is not money, and
+        # dividing pesos by pesos is the only way to get there.
         months_covered = (liquid / monthly).quantize(Decimal('0.01'))
 
     return {
@@ -109,6 +112,7 @@ def emergency_fund(user, base: str, today: date = None) -> dict:
         # honest answer is "unknown", not "infinite cover".
         **_band(months_covered, EMERGENCY_FUND_BANDS,
                 default=('unknown', 'No recorded spending yet to measure against.')),
+        'conversion': currency_service.conversion_report(liquid, monthly),
     }
 
 
@@ -127,6 +131,9 @@ def net_flow_series(user, base: str, months: int = 12, today: date = None) -> li
             'expenses': float(snap.total_expenses),
             'net': float(snap.net_savings),
             'net_worth': float(snap.net_worth),
+            # A month computed while a rate was missing is understated, and
+            # says so rather than passing as a clean figure.
+            'conversion_complete': snap.conversion_complete,
         }
         for snap in snapshots
     ]
@@ -194,6 +201,7 @@ def overview(user, base: str, months: int = 12, today: date = None) -> dict:
     savings_rate = round(net / total_income * 100, 2) if total_income > 0 else None
 
     patrimony = patrimony_service.summary_for(user, base)
+    fund = emergency_fund(user, base, today=today)
     latest = series[-1] if series else None
 
     # Debt-to-income on the most recent month with income.
@@ -219,7 +227,7 @@ def overview(user, base: str, months: int = 12, today: date = None) -> dict:
             **_band(savings_rate, SAVINGS_RATE_BANDS,
                     default=('unknown', 'No income recorded in this period.')),
         },
-        'emergency_fund': emergency_fund(user, base, today=today),
+        'emergency_fund': fund,
         'debt_load': {
             'debt_to_income': debt_to_income,
             **_band(
@@ -233,4 +241,38 @@ def overview(user, base: str, months: int = 12, today: date = None) -> dict:
             'total_liabilities': patrimony['total_liabilities'],
             'liquid_assets': patrimony['liquid_assets'],
         },
+        # One place a client can look to know whether these figures left
+        # anything out. The series itself comes from stored snapshots, whose
+        # own completeness is recorded on each row.
+        'conversion': _merge_reports(
+            patrimony['conversion'],
+            fund['conversion'],
+            _series_conversion(series),
+        ),
+    }
+
+
+def _series_conversion(series: list[dict]) -> dict:
+    """Whether any month in the window was computed with a missing rate."""
+    partial = [row['month'] for row in series if row.get('conversion_complete') is False]
+    return {
+        'complete': not partial,
+        'unconvertible_currencies': [],
+        'partial_months': partial,
+    }
+
+
+def _merge_reports(*reports: dict) -> dict:
+    """Fold several conversion reports into the single one a client reads."""
+    codes: set[str] = set()
+    partial_months: list[str] = []
+    for report in reports:
+        codes.update(report.get('unconvertible_currencies', ()))
+        partial_months.extend(report.get('partial_months', ()))
+    return {
+        'complete': not codes and not partial_months,
+        'unconvertible_currencies': sorted(codes),
+        # Stored months that were themselves computed with a rate missing.
+        # Recomputing them once a rate exists is what fixes these.
+        'partial_months': sorted(set(partial_months)),
     }

@@ -20,8 +20,19 @@ Money
 Every amount is a Decimal, converted with ROUND_HALF_EVEN and quantized to
 the target currency's own decimal places. Rounding half up on every
 conversion biases totals upward over thousands of rows; half-even does not.
+
+Totals
+------
+Aggregates are `Total` objects, not bare Decimals, and `Total` refuses to add
+itself to a Total in another currency. That is the whole point: adding pesos
+to dollars is not an operation, it is a bug, and the type makes it
+unwriteable rather than merely discouraged. Anything that could not be
+converted is carried along in `unconverted` and is *excluded* from the
+figure, so a total is either right or visibly incomplete — never quietly
+wrong.
 """
 import logging
+from dataclasses import dataclass, field as dataclass_field
 from datetime import timedelta
 from decimal import Decimal, ROUND_HALF_EVEN
 
@@ -202,30 +213,245 @@ def convert(amount, source: str, target: str) -> Decimal:
     return quantize(amount * get_rate(source, target), target)
 
 
-def convert_safe(amount, source: str, target: str) -> Decimal:
-    """convert(), but returns the untouched amount if no rate can be found.
+def try_convert(amount, source: str, target: str) -> Decimal | None:
+    """convert(), or None when no rate exists.
 
-    Aggregations use this so one missing rate degrades a single row instead of
-    failing the whole dashboard.
+    None is the honest answer to "how much is this in pesos?" when nobody
+    knows. Callers must decide what to do with it; what they must not do is
+    substitute the unconverted number, which is how a dollar figure ends up
+    added to a column of pesos.
     """
     try:
         return convert(amount, source, target)
     except ExchangeRateUnavailable:
-        logger.warning('No rate for %s->%s; leaving amount unconverted', source, target)
-        return Decimal(str(amount))
+        logger.warning('No rate for %s->%s; amount excluded from totals', source, target)
+        return None
 
 
-def sum_in(queryset, target: str, field: str = 'amount') -> Decimal:
+# --- Totals -------------------------------------------------------------
+
+@dataclass(frozen=True)
+class Unconverted:
+    """An amount left out of a total because no rate was available."""
+    currency: str
+    amount: Decimal
+
+    def as_dict(self) -> dict:
+        return {'currency': self.currency, 'amount': float(self.amount)}
+
+
+@dataclass(frozen=True)
+class Total:
+    """A sum of money in one stated currency.
+
+    Arithmetic is only defined between Totals of the same currency, and with
+    plain scalars (which carry no currency of their own). Everything else
+    raises: there is no sensible answer to "pesos plus dollars", so the type
+    declines to invent one.
+
+    `unconverted` lists what had to be left out, and it survives arithmetic —
+    a figure derived from an incomplete total is itself incomplete, and the
+    API says so rather than letting the caller assume otherwise.
+    """
+    amount: Decimal
+    currency: str
+    unconverted: tuple[Unconverted, ...] = dataclass_field(default=())
+
+    # -- construction
+
+    @classmethod
+    def zero(cls, currency: str) -> 'Total':
+        return cls(Decimal('0'), normalize(currency))
+
+    @classmethod
+    def of(cls, amount, currency: str) -> 'Total':
+        """A Total that is already expressed in `currency` — no conversion."""
+        currency = normalize(currency)
+        return cls(quantize(Decimal(str(amount)), currency), currency)
+
+    @classmethod
+    def converted(cls, amount, source: str, target: str) -> 'Total':
+        """`amount` expressed in `target`, or zero plus a record of the miss.
+
+        Zero rather than the raw number, because the raw number is in the
+        wrong currency and would corrupt anything it touches.
+        """
+        source, target = normalize(source), normalize(target)
+        value = try_convert(amount, source, target)
+        if value is None:
+            return cls(
+                Decimal('0'), target,
+                (Unconverted(source, Decimal(str(amount))),),
+            )
+        return cls(value, target)
+
+    # -- reading
+
+    @property
+    def complete(self) -> bool:
+        """False when something had to be left out of this figure."""
+        return not self.unconverted
+
+    def __float__(self) -> float:
+        return float(self.amount)
+
+    def __str__(self) -> str:
+        return f'{self.amount} {self.currency}'
+
+    def __bool__(self) -> bool:
+        return bool(self.amount)
+
+    # -- arithmetic
+
+    def _same(self, other: 'Total') -> None:
+        if self.currency != other.currency:
+            raise ValueError(
+                f'Refusing to combine {self.currency} with {other.currency}: '
+                'convert one of them first.'
+            )
+
+    def __add__(self, other):
+        if not isinstance(other, Total):
+            return NotImplemented
+        self._same(other)
+        return Total(
+            self.amount + other.amount, self.currency,
+            self.unconverted + other.unconverted,
+        )
+
+    def __sub__(self, other):
+        if not isinstance(other, Total):
+            return NotImplemented
+        self._same(other)
+        return Total(
+            self.amount - other.amount, self.currency,
+            self.unconverted + other.unconverted,
+        )
+
+    def __neg__(self) -> 'Total':
+        return Total(-self.amount, self.currency, self.unconverted)
+
+    def __mul__(self, factor):
+        """Scaling by a plain number keeps the currency; by a Total does not."""
+        if isinstance(factor, Total):
+            raise ValueError('Multiplying two amounts of money is not a money amount.')
+        return Total(
+            quantize(self.amount * Decimal(str(factor)), self.currency),
+            self.currency, self.unconverted,
+        )
+
+    __rmul__ = __mul__
+
+    def __truediv__(self, divisor):
+        """Total / Total is a ratio (no currency); Total / number is a Total."""
+        if isinstance(divisor, Total):
+            self._same(divisor)
+            if not divisor.amount:
+                raise ZeroDivisionError('Cannot take a ratio against a zero total.')
+            return self.amount / divisor.amount
+        divisor = Decimal(str(divisor))
+        if not divisor:
+            raise ZeroDivisionError
+        return Total(
+            quantize(self.amount / divisor, self.currency),
+            self.currency, self.unconverted,
+        )
+
+    # -- comparison
+
+    def _comparable(self, other):
+        """Totals compare with same-currency Totals, and with zero.
+
+        Zero is the one number with no currency of its own, and `if total > 0`
+        is the check every caller actually wants to write.
+        """
+        if isinstance(other, Total):
+            self._same(other)
+            return other.amount
+        if isinstance(other, (int, float, Decimal)) and Decimal(str(other)) == 0:
+            return Decimal('0')
+        raise ValueError(
+            f'Cannot compare a {self.currency} amount with {other!r}: '
+            'only zero and other amounts in the same currency.'
+        )
+
+    def __lt__(self, other):
+        return self.amount < self._comparable(other)
+
+    def __le__(self, other):
+        return self.amount <= self._comparable(other)
+
+    def __gt__(self, other):
+        return self.amount > self._comparable(other)
+
+    def __ge__(self, other):
+        return self.amount >= self._comparable(other)
+
+
+def merge_unconverted(*totals) -> list[str]:
+    """The currencies left out across several totals.
+
+    Currencies, not amounts. One response holds overlapping aggregations —
+    total assets, liquid assets, and assets by type all cover the same rows —
+    so adding up what each of them excluded would count the same money
+    several times. Rather than publish a figure that cannot be defended,
+    this reports which currencies are unreachable, which is the part that is
+    both true and actionable: the fix is to get a rate for them.
+    """
+    codes: set[str] = set()
+    for total in totals:
+        if not isinstance(total, Total):
+            continue
+        codes.update(miss.currency for miss in total.unconverted)
+    return sorted(codes)
+
+
+def conversion_report(*totals) -> dict:
+    """The block every aggregate endpoint attaches so a client can tell a
+    complete total from a partial one."""
+    missing = merge_unconverted(*totals)
+    return {
+        'complete': not missing,
+        'unconvertible_currencies': missing,
+    }
+
+
+def unconvertible_currencies(querysets, target: str) -> list[str]:
+    """Which currencies present in these querysets have no rate to `target`.
+
+    A shortcut for endpoints that build their totals through many small
+    helpers: rather than threading a Total through every one of them, ask
+    once which currencies are unreachable. The answer is the same, because a
+    currency either converts or it does not.
+    """
+    target = normalize(target)
+    codes: set[str] = set()
+    for queryset in querysets:
+        codes.update(
+            normalize(code or target)
+            for code in queryset.values_list('currency', flat=True).distinct()
+        )
+    missing = []
+    for code in sorted(codes):
+        if code == target:
+            continue
+        if try_convert(Decimal('1'), code, target) is None:
+            missing.append(code)
+    return missing
+
+
+def sum_in(queryset, target: str, field: str = 'amount') -> Total:
     """Total a queryset in one currency, honouring each row's own currency.
 
     Summing mixed currencies in SQL would add pesos to dollars. Grouping by
     currency first keeps the database doing the heavy lifting and leaves only
-    one conversion per currency to Python.
+    one conversion per currency to Python — and a group whose rate is missing
+    is left out of the figure and recorded, never folded in unconverted.
     """
     target = normalize(target)
-    total = Decimal('0')
+    total = Total.zero(target)
     grouped = queryset.values('currency').annotate(total=Sum(field))
     for row in grouped:
         subtotal = row['total'] or Decimal('0')
-        total += convert_safe(subtotal, row['currency'] or target, target)
-    return quantize(total, target)
+        total = total + Total.converted(subtotal, row['currency'] or target, target)
+    return Total(quantize(total.amount, target), target, total.unconverted)

@@ -80,7 +80,7 @@ class DebtViewSet(OwnerScopedMixin, viewsets.ModelViewSet):
         # Compare balances in one currency, or the ordering is meaningless.
         base = base_currency_for(request.user)
         snowball = sorted(debts, key=lambda d: float(
-            currency_service.convert_safe(d.current_balance, d.currency or base, base)
+            currency_service.Total.converted(d.current_balance, d.currency or base, base)
         ))
 
         return Response({

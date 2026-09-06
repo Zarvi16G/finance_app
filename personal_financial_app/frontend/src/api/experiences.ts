@@ -3,6 +3,7 @@
  * aggregate endpoint (with their budgets already totalled and converted),
  * while individual budget lines are edited through their own ViewSet.
  */
+import i18n from '../i18n';
 import { apiClient } from './client';
 import type { ExperienceBudgetItem, LifeExperiences } from '../types';
 
@@ -39,16 +40,10 @@ export const budgetItemsApi = {
   },
 };
 
-export const BUDGET_CATEGORIES: Array<{ value: string; label: string }> = [
-  { value: 'transport', label: 'Transporte' },
-  { value: 'lodging', label: 'Alojamiento' },
-  { value: 'food', label: 'Comida' },
-  { value: 'activities', label: 'Actividades' },
-  { value: 'insurance', label: 'Seguros y visados' },
-  { value: 'shopping', label: 'Compras' },
-  { value: 'buffer', label: 'Colchón' },
-  { value: 'other', label: 'Otro' },
-];
+export const BUDGET_CATEGORIES = [
+  'transport', 'lodging', 'food', 'activities',
+  'insurance', 'shopping', 'buffer', 'other',
+] as const;
 
 export const budgetCategoryLabel = (value: string): string =>
-  BUDGET_CATEGORIES.find((c) => c.value === value)?.label ?? value;
+  i18n.t(`budgetCategories.${value}`, { defaultValue: value });

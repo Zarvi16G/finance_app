@@ -14,6 +14,19 @@ class FinancialSnapshot(models.Model):
         help_text="The user this snapshot summarizes",
     )
     date = models.DateField()  # First day of month
+
+    # A snapshot is history: once written, its figures are read back for
+    # months. If a rate was missing when it was computed, the amounts in that
+    # currency were left out — so the row records that it is understated
+    # rather than passing forever as a clean total.
+    conversion_complete = models.BooleanField(
+        default=True,
+        help_text=(
+            "False when an amount could not be converted to the base currency "
+            "and was excluded from this snapshot's figures"
+        ),
+    )
+
     total_income = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_expenses = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     net_savings = models.DecimalField(max_digits=12, decimal_places=2, default=0)

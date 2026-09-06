@@ -953,11 +953,20 @@ class CurrencyServiceTests(TestCase):
             with self.assertRaises(currency_service.ExchangeRateUnavailable):
                 currency_service.get_rate('USD', 'JPY')
 
-    def test_convert_safe_leaves_the_amount_alone_when_no_rate_exists(self):
+    def test_try_convert_answers_none_rather_than_the_unconverted_amount(self):
         with mock.patch('requests.get', side_effect=requests.RequestException('down')):
-            self.assertEqual(
-                currency_service.convert_safe(Decimal('50'), 'USD', 'JPY'), Decimal('50')
-            )
+            self.assertIsNone(currency_service.try_convert(Decimal('50'), 'USD', 'JPY'))
+
+    def test_converted_total_excludes_what_it_could_not_convert(self):
+        """50 USD with no rate must not become 50 JPY."""
+        with mock.patch('requests.get', side_effect=requests.RequestException('down')):
+            total = currency_service.Total.converted(Decimal('50'), 'USD', 'JPY')
+
+        self.assertEqual(total.amount, Decimal('0'))
+        self.assertEqual(total.currency, 'JPY')
+        self.assertFalse(total.complete)
+        self.assertEqual(total.unconverted[0].currency, 'USD')
+        self.assertEqual(total.unconverted[0].amount, Decimal('50'))
 
     def test_refresh_only_caches_known_currencies(self):
         with self._provider(rates={'USD': 1, 'COP': 4000, 'XYZ': 7}):
@@ -1001,7 +1010,75 @@ class MultiCurrencyAggregationTests(AuthTestCase):
     def test_sum_in_converts_each_currency_before_adding(self):
         records = FinancialRecord.objects.filter(owner=self.user)
         # 100.000 COP + (10 USD * 4000) = 140.000 COP
-        self.assertEqual(currency_service.sum_in(records, 'COP'), Decimal('140000'))
+        total = currency_service.sum_in(records, 'COP')
+        self.assertEqual(total.amount, Decimal('140000'))
+        self.assertEqual(total.currency, 'COP')
+        self.assertTrue(total.complete)
+
+    def test_sum_in_leaves_out_a_currency_it_cannot_convert(self):
+        """The regression this whole type exists to prevent.
+
+        Without a USD rate the old code added the raw 10 into a peso total,
+        producing 100.010 — a number that looks like pesos and is not. The
+        total must now be the 100.000 it can actually vouch for, and it must
+        say that 10 USD were left out.
+        """
+        ExchangeRate.objects.filter(base='USD', target='COP').delete()
+        records = FinancialRecord.objects.filter(owner=self.user)
+
+        with mock.patch('requests.get', side_effect=requests.RequestException('down')):
+            total = currency_service.sum_in(records, 'COP')
+
+        self.assertEqual(total.amount, Decimal('100000'))
+        self.assertFalse(total.complete)
+        self.assertEqual(
+            [(u.currency, u.amount) for u in total.unconverted],
+            [('USD', Decimal('10'))],
+        )
+
+    def test_totals_in_different_currencies_refuse_to_be_added(self):
+        pesos = currency_service.Total.of(1000, 'COP')
+        dollars = currency_service.Total.of(10, 'USD')
+
+        with self.assertRaises(ValueError):
+            pesos + dollars
+        with self.assertRaises(ValueError):
+            pesos - dollars
+        with self.assertRaises(ValueError):
+            pesos > dollars
+
+    def test_totals_in_the_same_currency_combine_and_carry_exclusions(self):
+        a = currency_service.Total.of(1000, 'COP')
+        with mock.patch('requests.get', side_effect=requests.RequestException('down')):
+            b = currency_service.Total.converted(5, 'JPY', 'COP')
+
+        combined = a + b
+        self.assertEqual(combined.amount, Decimal('1000'))
+        # An incomplete input makes the result incomplete: the flag travels.
+        self.assertFalse(combined.complete)
+
+    def test_dividing_two_totals_gives_a_plain_ratio(self):
+        liquid = currency_service.Total.of(9000, 'COP')
+        monthly = currency_service.Total.of(2000, 'COP')
+        self.assertEqual(liquid / monthly, Decimal('4.5'))
+
+    def test_patrimony_reports_an_incomplete_conversion(self):
+        Asset.objects.create(
+            owner=self.user, name='Brokerage', asset_type='investment',
+            current_value=Decimal('1000'), currency='USD', is_liquid=True,
+        )
+        ExchangeRate.objects.filter(base='USD', target='COP').delete()
+
+        with mock.patch('requests.get', side_effect=requests.RequestException('down')):
+            response = self.client.get('/api/patrimony/')
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        # The dollars are not silently counted as pesos...
+        self.assertEqual(data['total_assets'], 0)
+        # ...and the response says so.
+        self.assertFalse(data['conversion']['complete'])
+        self.assertEqual(data['conversion']['unconvertible_currencies'], ['USD'])
 
     def test_analytics_totals_are_in_the_base_currency(self):
         response = self.client.get('/api/analytics/')

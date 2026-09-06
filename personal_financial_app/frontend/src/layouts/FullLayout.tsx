@@ -4,11 +4,13 @@
  * where routed pages render.
  */
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import SimpleBar from 'simplebar-react';
 import { AMSidebar, AMMenu, AMMenuItem } from 'tailwind-sidebar';
 import 'tailwind-sidebar/styles.css';
+import LanguageToggle from '../components/shared/LanguageToggle';
 import { useTheme } from '../components/provider/theme-provider';
 import { useAuth } from '../auth/AuthContext';
 import { Button } from '../components/ui/button';
@@ -25,34 +27,40 @@ import { Sheet, SheetContent, SheetTitle } from '../components/ui/sheet';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 
 /** The order is the design's: what you have, then what you plan, then how it
- *  is going, then the account. */
+ *  is going, then the account.
+ *
+ *  Routes stay in Spanish even in English mode — a URL is an address, not
+ *  copy, and switching language must not invalidate a bookmark. Only `key`
+ *  decides the label. */
 const NAV_ITEMS = [
-  { name: 'Dashboard', icon: 'solar:widget-2-linear', url: '/' },
-  { name: 'Movimientos', icon: 'solar:list-linear', url: '/movimientos' },
-  { name: 'Extractos', icon: 'solar:document-text-linear', url: '/extractos' },
-  { name: 'Deudas', icon: 'solar:wallet-money-linear', url: '/deudas' },
-  { name: 'Metas', icon: 'solar:target-linear', url: '/metas' },
-  { name: 'Experiencias', icon: 'solar:map-point-wave-linear', url: '/experiencias' },
-  { name: 'Patrimonio', icon: 'solar:safe-square-linear', url: '/patrimonio' },
-  { name: 'Wealthness', icon: 'solar:heart-pulse-linear', url: '/wealthness' },
-  { name: 'Análisis', icon: 'solar:magic-stick-3-linear', url: '/analisis' },
-  { name: 'Perfil', icon: 'solar:user-circle-linear', url: '/perfil' },
+  { key: 'dashboard', icon: 'solar:widget-2-linear', url: '/' },
+  { key: 'movements', icon: 'solar:list-linear', url: '/movimientos' },
+  { key: 'statements', icon: 'solar:document-text-linear', url: '/extractos' },
+  { key: 'debts', icon: 'solar:wallet-money-linear', url: '/deudas' },
+  { key: 'goals', icon: 'solar:target-linear', url: '/metas' },
+  { key: 'experiences', icon: 'solar:map-point-wave-linear', url: '/experiencias' },
+  { key: 'patrimony', icon: 'solar:safe-square-linear', url: '/patrimonio' },
+  { key: 'wealthness', icon: 'solar:heart-pulse-linear', url: '/wealthness' },
+  { key: 'analysis', icon: 'solar:magic-stick-3-linear', url: '/analisis' },
+  { key: 'profile', icon: 'solar:user-circle-linear', url: '/perfil' },
 ];
 
-function sectionLabel(pathname: string): string {
+function sectionKey(pathname: string): string {
   const match = NAV_ITEMS.slice(1).find((item) => pathname.startsWith(item.url));
-  return match?.name ?? 'Dashboard';
+  return match?.key ?? 'dashboard';
 }
 
 function BrandLogo() {
+  const { t } = useTranslation();
   return (
-    <Link to="/" className="block px-6 py-5" aria-label="Patrimonio, ir al inicio">
-      <span className="fig text-[21px] font-medium text-sidebar-foreground">Patrimonio</span>
+    <Link to="/" className="block px-6 py-5" aria-label={t('brand')}>
+      <span className="fig text-[21px] font-medium text-sidebar-foreground">{t('brand')}</span>
     </Link>
   );
 }
 
 function SidebarContent({ onClose }: { onClose?: () => void }) {
+  const { t } = useTranslation();
   const { pathname } = useLocation();
   const { theme } = useTheme();
   const sidebarMode = theme === 'light' || theme === 'dark' ? theme : undefined;
@@ -74,7 +82,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       <SimpleBar className="h-[calc(100vh-90px)]">
         <div className="px-3 pt-4">
           <AMMenu
-            subHeading="Tus finanzas"
+            subHeading={t('nav.sectionHeading')}
             ClassName="hide-menu leading-21 text-[11px] uppercase tracking-[0.15em] text-muted-foreground"
           />
           {NAV_ITEMS.map((item) => {
@@ -89,7 +97,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
                   component={Link}
                   className="mt-0.5 text-sm text-sidebar-foreground dark:text-sidebar-foreground"
                 >
-                  <span className="truncate flex-1">{item.name}</span>
+                  <span className="truncate flex-1">{t(`nav.${item.key}`)}</span>
                 </AMMenuItem>
               </div>
             );
@@ -101,6 +109,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
 }
 
 function ProfileMenu() {
+  const { t } = useTranslation();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -124,18 +133,18 @@ function ProfileMenu() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel>
-          <p className="eyebrow-sm">Sesión</p>
+          <p className="eyebrow-sm">{t('nav.session')}</p>
           <p className="mt-1 text-sm font-semibold">{user?.username}</p>
           <p className="text-xs text-muted-foreground">{user?.email || '—'}</p>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => navigate('/perfil')}>
           <Icon icon="solar:user-circle-linear" className="mr-2 h-4 w-4" />
-          Perfil
+          {t('nav.profile')}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={handleLogout} className="text-error focus:text-error">
           <Icon icon="solar:logout-2-linear" className="mr-2 h-4 w-4" />
-          Cerrar sesión
+          {t('nav.logout')}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -143,6 +152,7 @@ function ProfileMenu() {
 }
 
 export default function FullLayout() {
+  const { t } = useTranslation();
   const { theme, setTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { pathname } = useLocation();
@@ -165,22 +175,23 @@ export default function FullLayout() {
                 size="icon"
                 className="xl:hidden"
                 onClick={() => setMobileOpen(true)}
-                aria-label="Open navigation"
+                aria-label={t('nav.openNav')}
               >
                 <Icon icon="solar:hamburger-menu-linear" height={18} width={18} />
               </Button>
               <p className="letterhead">
-                <span className="fig font-semibold text-foreground">Patrimonio</span>
+                <span className="fig font-semibold text-foreground">{t('brand')}</span>
                 <span className="mx-2 text-border">/</span>
-                {sectionLabel(pathname)}
+                {t(`nav.${sectionKey(pathname)}`)}
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <LanguageToggle />
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={toggleMode}
-                aria-label="Toggle theme"
+                aria-label={t('nav.toggleTheme')}
                 className="text-muted-foreground hover:text-foreground"
               >
                 <Icon
@@ -197,7 +208,7 @@ export default function FullLayout() {
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetContent side="left" className="p-0 w-[264px]">
               <SheetTitle>
-                <VisuallyHidden>Navigation</VisuallyHidden>
+                <VisuallyHidden>{t('nav.navigation')}</VisuallyHidden>
               </SheetTitle>
               <SidebarContent onClose={() => setMobileOpen(false)} />
             </SheetContent>

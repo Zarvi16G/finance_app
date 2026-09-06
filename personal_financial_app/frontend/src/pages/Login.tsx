@@ -9,6 +9,7 @@
  * outlive the attempt it belongs to.
  */
 import { useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import AuthLayout from '../layouts/AuthLayout';
 import { Button } from '../components/ui/button';
@@ -19,6 +20,7 @@ import { authErrorMessage } from '../lib/authErrors';
 import { isMfaChallenge } from '../types';
 
 export default function Login() {
+  const { t } = useTranslation();
   const { login } = useAuth();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
@@ -46,19 +48,19 @@ export default function Login() {
 
   return (
     <AuthLayout
-      headline="Tus cifras, en un solo lugar."
-      blurb="Todo lo que registras vive en tu propio servidor. Ningún banco, ninguna app de terceros y nadie más lee tus movimientos."
-      footnote="Registro financiero personal"
+      headline={t('auth.loginHeadline')}
+      blurb={t('auth.loginBlurb')}
+      footnote={t('auth.loginFootnote')}
     >
-      <p className="letterhead mb-3.5">Entrar</p>
-      <h1 className="fig m-0 text-[32px] font-medium">Inicia sesión</h1>
+      <p className="letterhead mb-3.5">{t('auth.signIn')}</p>
+      <h1 className="fig m-0 text-[32px] font-medium">{t('auth.signInTitle')}</h1>
       <p className="m-0 mt-3 text-[15px] leading-relaxed text-inksoft">
-        Con tu usuario y tu contraseña.
+        {t('auth.signInSubtitle')}
       </p>
 
       <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
         <div>
-          <Label htmlFor="username">Usuario</Label>
+          <Label htmlFor="username">{t('auth.username')}</Label>
           <Input
             id="username"
             type="text"
@@ -70,7 +72,7 @@ export default function Login() {
           />
         </div>
         <div>
-          <Label htmlFor="userpwd">Contraseña</Label>
+          <Label htmlFor="userpwd">{t('auth.password')}</Label>
           <Input
             id="userpwd"
             type="password"
@@ -85,14 +87,14 @@ export default function Login() {
         {error && <p className="bg-lighterror px-3 py-2 text-sm text-error">{error}</p>}
 
         <Button type="submit" className="w-full py-3.5 text-[15px]" disabled={submitting}>
-          {submitting ? 'Entrando…' : 'Entrar'}
+          {submitting ? t('auth.signingIn') : t('auth.signIn')}
         </Button>
       </form>
 
       <div className="mt-7 flex items-center justify-between border-t border-border pt-5">
-        <p className="text-sm text-muted-foreground">¿Todavía no tienes cuenta?</p>
+        <p className="text-sm text-muted-foreground">{t('auth.noAccount')}</p>
         <Link to="/register" className="text-sm font-semibold text-primary hover:underline">
-          Crear una
+          {t('auth.createOne')}
         </Link>
       </div>
     </AuthLayout>

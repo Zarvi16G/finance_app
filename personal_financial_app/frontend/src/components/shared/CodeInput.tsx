@@ -8,6 +8,7 @@
  * focus-juggling on every keystroke and would break paste entirely.
  */
 import { useId, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '../../lib/utils';
 
 export default function CodeInput({
@@ -30,6 +31,7 @@ export default function CodeInput({
   label?: string;
   size?: 'md' | 'lg';
 }) {
+  const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const id = useId();
 
@@ -62,7 +64,7 @@ export default function CodeInput({
           inputMode="numeric"
           autoComplete="one-time-code"
           maxLength={length}
-          aria-label={label ?? 'Código de verificación'}
+          aria-label={label ?? t('auth.codeLabel')}
           // Invisible but focusable and on top, so a click anywhere on the
           // boxes lands in the field the keyboard actually writes to.
           className="absolute inset-0 z-10 h-full w-full cursor-text opacity-0"

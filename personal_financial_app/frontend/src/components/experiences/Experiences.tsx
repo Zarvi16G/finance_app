@@ -13,11 +13,12 @@
  * being silently smoothed away.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '@iconify/react';
 import PageHeader from '../shared/PageHeader';
 import BaseCurrencyBadge from '../shared/BaseCurrencyBadge';
 import EmptyState from '../shared/EmptyState';
+import ConversionNotice from '../shared/ConversionNotice';
 import { Button } from '../ui/button';
 import BudgetItemForm from './BudgetItemForm';
 import { budgetCategoryLabel, budgetItemsApi, experiencesApi } from '../../api/experiences';
@@ -32,6 +33,7 @@ const COLS = 'grid grid-cols-[1.5fr_1fr_1fr_1fr_0.8fr_40px] items-center gap-5';
 const SPLIT_TONES = ['bg-foreground', 'bg-secondary', 'bg-muted-foreground', 'bg-muted'];
 
 export default function Experiences() {
+  const { t } = useTranslation();
   const [data, setData] = useState<LifeExperiences | null>(null);
   const [items, setItems] = useState<ExperienceBudgetItem[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -95,7 +97,7 @@ export default function Experiences() {
   }, [load]);
 
   const removeItem = async (item: ExperienceBudgetItem) => {
-    if (!window.confirm(`¿Eliminar la línea "${item.label}"?`)) return;
+    if (!window.confirm(t('experiences.confirmDeleteLine', { name: item.label }))) return;
     try {
       await budgetItemsApi.remove(item.id);
       await reload();
@@ -104,7 +106,7 @@ export default function Experiences() {
     }
   };
 
-  if (loading) return <p className="text-sm text-muted-foreground">Cargando tus experiencias…</p>;
+  if (loading) return <p className="text-sm text-muted-foreground">{t('experiences.loading')}</p>;
   if (!data) {
     return <p className="border border-error/40 bg-lighterror p-4 text-sm text-error">{error}</p>;
   }
@@ -116,24 +118,15 @@ export default function Experiences() {
     return (
       <div className="flex flex-col gap-8">
         <PageHeader
-          eyebrow="Experiencias de vida"
-          title="Todavía no hay ninguna"
+          eyebrow={t('experiences.eyebrow')}
+          title={t('experiences.noneTitle')}
           actions={<BaseCurrencyBadge currency={base} />}
         />
         <EmptyState
-          label="Experiencias"
-          headline="Ninguna todavía"
-          explanation={
-            <>
-              Un viaje, un curso, una boda: algo con fecha y presupuesto propio, separado de tus
-              metas de ahorro. Se crean desde{' '}
-              <Link to="/metas" className="font-semibold text-primary hover:underline">
-                Metas
-              </Link>
-              , marcando la meta como experiencia.
-            </>
-          }
-          action={{ label: 'Ir a Metas', to: '/metas' }}
+          label={t('nav.experiences')}
+          headline={t('experiences.noneHeadline')}
+          explanation={t('experiences.noneBody')}
+          action={{ label: t('experiences.goToGoals'), to: '/metas' }}
           className="max-w-lg"
         />
       </div>
@@ -146,7 +139,7 @@ export default function Experiences() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow="Experiencias de vida"
+        eyebrow={t('experiences.eyebrow')}
         title={current.title}
         meta={
           <>
@@ -167,10 +160,12 @@ export default function Experiences() {
         actions={
           <>
             <BaseCurrencyBadge currency={base} />
-            <Button onClick={() => setEditing('new')}>Añadir línea</Button>
+            <Button onClick={() => setEditing('new')}>{t('experiences.addLine')}</Button>
           </>
         }
       />
+
+      <ConversionNotice report={data.conversion} baseCurrency={base} />
 
       {data.experiences.length > 1 && (
         <div className="flex flex-wrap gap-2 border-b border-border pb-4">
@@ -198,17 +193,17 @@ export default function Experiences() {
       {/* The two numbers, deliberately apart */}
       <div className="grid gap-10 border-y rule-strong border-b-border py-6 md:grid-cols-3">
         <div>
-          <div className="eyebrow-sm mb-2.5">Meta de ahorro</div>
+          <div className="eyebrow-sm mb-2.5">{t('experiences.savingTarget')}</div>
           <div className="fig text-[34px] font-medium">{fmtFigure(b.target_amount, base)}</div>
-          <div className="mt-2 text-[13px] text-muted-foreground">Lo que decidiste ahorrar</div>
+          <div className="mt-2 text-[13px] text-muted-foreground">{t('experiences.savingTargetNote')}</div>
         </div>
         <div className="md:border-l md:border-border md:pl-10">
-          <div className="eyebrow-sm mb-2.5">Presupuesto detallado</div>
+          <div className="eyebrow-sm mb-2.5">{t('experiences.itemisedBudget')}</div>
           <div className="fig text-[34px] font-medium">{fmtFigure(b.estimated_total, base)}</div>
-          <div className="mt-2 text-[13px] text-muted-foreground">Lo que suman tus líneas</div>
+          <div className="mt-2 text-[13px] text-muted-foreground">{t('experiences.itemisedBudgetNote')}</div>
         </div>
         <div className="md:border-l md:border-border md:pl-10">
-          <div className="eyebrow-sm mb-2.5">Diferencia</div>
+          <div className="eyebrow-sm mb-2.5">{t('experiences.difference')}</div>
           <div
             className={`fig text-[34px] font-medium ${gap > 0 ? 'text-error' : 'text-success'}`}
           >
@@ -216,11 +211,13 @@ export default function Experiences() {
             {fmtFigure(Math.abs(gap), base)}
           </div>
           <div className="mt-2 text-[13px] leading-relaxed text-inksoft">
-            {gap > 0
-              ? 'El plan cuesta más que la meta: es un plan con un hueco.'
-              : gap < 0
-                ? 'El plan cuesta menos que la meta. Con signo positivo, sería un plan con un hueco.'
-                : 'El plan y la meta coinciden exactamente.'}
+            {t(
+              gap > 0
+                ? 'experiences.planCostsMore'
+                : gap < 0
+                  ? 'experiences.planCostsLess'
+                  : 'experiences.planMatches',
+            )}
           </div>
         </div>
       </div>
@@ -228,16 +225,12 @@ export default function Experiences() {
       {/* Saving progress */}
       <div>
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-          <div className="fig text-[19px] font-medium">Progreso de ahorro</div>
+          <div className="fig text-[19px] font-medium">{t('experiences.savingProgress')}</div>
           <div className="text-sm text-inksoft">
-            <span className="fig text-[17px] text-foreground">
-              {fmtFigure(b.saved_amount, base)}
-            </span>{' '}
-            ahorrados ·{' '}
-            <span className="fig text-[17px] text-foreground">
-              {fmtFigure(b.still_to_save, base)}
-            </span>{' '}
-            por reunir
+            {t('experiences.savedAndRemaining', {
+              saved: fmtFigure(b.saved_amount, base),
+              remaining: fmtFigure(b.still_to_save, base),
+            })}
           </div>
         </div>
         <div className="flex h-9 items-center border rule-strong bg-muted">
@@ -262,25 +255,24 @@ export default function Experiences() {
       {/* Budget lines */}
       <div>
         <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-          <div className="fig text-[19px] font-medium">Líneas del presupuesto</div>
+          <div className="fig text-[19px] font-medium">{t('experiences.budgetLines')}</div>
           <span className="text-[13px] text-muted-foreground">
-            Cada línea guarda su moneda original; los totales se convierten a {base}.
+            {t('experiences.linesNote', { base })}
           </span>
         </div>
 
         {items.length === 0 ? (
           <p className="border border-input bg-card p-6 text-sm text-inksoft">
-            Sin líneas, el presupuesto de esta experiencia es cero y la diferencia contra la meta
-            no dice nada. Añade lo que ya sabes que va a costar: vuelos, alojamiento, comida.
+            {t('experiences.noLines')}
           </p>
         ) : (
           <>
             <div className={`${COLS} border-b rule-strong py-3`}>
-              <span className="eyebrow-sm">Concepto</span>
-              <span className="eyebrow-sm">Categoría</span>
-              <span className="eyebrow-sm text-right">Estimado</span>
-              <span className="eyebrow-sm text-right">En {base}</span>
-              <span className="eyebrow-sm text-right">Estado</span>
+              <span className="eyebrow-sm">{t('experiences.concept')}</span>
+              <span className="eyebrow-sm">{t('experiences.category')}</span>
+              <span className="eyebrow-sm text-right">{t('experiences.estimated')}</span>
+              <span className="eyebrow-sm text-right">{t('experiences.inBase', { base })}</span>
+              <span className="eyebrow-sm text-right">{t('experiences.state')}</span>
               <span />
             </div>
             {items.map((item) => (
@@ -303,7 +295,7 @@ export default function Experiences() {
                   {item.currency === base ? (
                     fmtFigure(item.estimated_amount, base)
                   ) : (
-                    <span className="text-muted-foreground" title="Convertido en el total">
+                    <span className="text-muted-foreground" title={t('experiences.convertedInTotal')}>
                       —
                     </span>
                   )}
@@ -311,16 +303,16 @@ export default function Experiences() {
                 <span className="text-right">
                   {item.is_booked ? (
                     <span className="border-b-2 border-success pb-0.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-success">
-                      Reservado
+                      {t('experiences.booked')}
                     </span>
                   ) : (
-                    <span className="text-xs text-muted-foreground">Por reservar</span>
+                    <span className="text-xs text-muted-foreground">{t('experiences.toBook')}</span>
                   )}
                 </span>
                 <button
                   type="button"
                   onClick={() => removeItem(item)}
-                  aria-label={`Eliminar ${item.label}`}
+                  aria-label={`${t('common.delete')} ${item.label}`}
                   className="justify-self-end text-muted-foreground transition-colors hover:text-error"
                 >
                   <Icon icon="solar:trash-bin-minimalistic-linear" height={16} width={16} />
@@ -335,7 +327,7 @@ export default function Experiences() {
       {b.by_category.length > 0 && (
         <div className="grid items-start gap-11 md:grid-cols-2">
           <div>
-            <div className="fig mb-4 text-[19px] font-medium">Reparto del presupuesto</div>
+            <div className="fig mb-4 text-[19px] font-medium">{t('experiences.budgetSplit')}</div>
             <div className="flex h-10 border rule-strong">
               {b.by_category.map((row, i) => (
                 <div
@@ -359,16 +351,15 @@ export default function Experiences() {
             </div>
           </div>
           <div className="md:border-l md:border-border md:pl-11">
-            <div className="fig mb-4 text-[19px] font-medium">Reservado hasta ahora</div>
+            <div className="fig mb-4 text-[19px] font-medium">{t('experiences.bookedSoFar')}</div>
             <div className="fig text-[30px] font-medium">
               {fmtFigure(b.booked_total, base)}{' '}
               <span className="text-base text-muted-foreground">
-                de {fmtFigure(b.estimated_total, base)}
+                {t('experiences.outOf', { total: fmtFigure(b.estimated_total, base) })}
               </span>
             </div>
             <p className="mt-3 text-sm leading-relaxed text-inksoft">
-              Una línea reservada ya está pagada: su precio no se moverá. El resto sigue expuesto
-              al cambio de tarifas y al tipo de cambio.
+              {t('experiences.bookedNote')}
             </p>
           </div>
         </div>

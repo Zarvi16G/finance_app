@@ -1,18 +1,27 @@
 /**
  * Money formatting, following the rules stated on the design's token sheet:
  *
- *   COP has no decimals · 159.000.000
- *   USD and EUR have two · 1.500,00
- *   Dot groups thousands, comma marks decimals
+ *   COP has no decimals · 159.000.000 / 159,000,000
+ *   USD and EUR have two · 1.500,00 / 1,500.00
  *
- * That is the es-CO convention, so the locale is pinned rather than left to
- * the browser: the same figure must not read as 1,500.00 for one visitor and
- * 1.500,00 for another when both are looking at pesos.
+ * Two different things decide how a figure looks, and they must not be
+ * confused:
  *
- * Decimals come from ISO 4217 and mirror `Currency.decimals` in the backend.
- * A currency we do not know about falls back to two, which is the common case.
+ *   How many decimals — a property of the *currency*. Pesos have none
+ *   whoever is reading; that comes from ISO 4217 and mirrors
+ *   `Currency.decimals` in the backend.
+ *
+ *   Which separators group and mark them — a property of the *reading
+ *   language*. "1.500" means one thousand five hundred to a Spanish reader
+ *   and one point five to an English one, so the grouping follows the UI
+ *   language rather than the currency. Pinning it to es-CO would hand an
+ *   English reader a figure they would misread.
  */
-const LOCALE = 'es-CO';
+import i18n from '../i18n';
+
+const LOCALES: Record<string, string> = { es: 'es-CO', en: 'en-US' };
+
+const locale = (): string => LOCALES[i18n.resolvedLanguage ?? 'es'] ?? 'es-CO';
 
 /** Currencies whose minor unit is not 1/100. */
 const DECIMALS: Record<string, number> = {
@@ -40,7 +49,7 @@ const toNumber = (v: number | string | null | undefined): number => {
  */
 export function fmtFigure(value: number | string | null | undefined, currency = 'COP'): string {
   const digits = decimalsFor(currency);
-  return toNumber(value).toLocaleString(LOCALE, {
+  return toNumber(value).toLocaleString(locale(), {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   });
@@ -73,7 +82,7 @@ export function fmtSigned(value: number | string | null | undefined, currency = 
  */
 export function fmtNumber(value: number | string | null | undefined, digits = 1): string {
   if (value === null || value === undefined) return '—';
-  return toNumber(value).toLocaleString(LOCALE, {
+  return toNumber(value).toLocaleString(locale(), {
     minimumFractionDigits: 0,
     maximumFractionDigits: digits,
   });
@@ -82,7 +91,7 @@ export function fmtNumber(value: number | string | null | undefined, digits = 1)
 /** A percentage with one decimal: `60,0 %`. */
 export function fmtPercent(value: number | null | undefined, digits = 1): string {
   if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
-  return `${Number(value).toLocaleString(LOCALE, {
+  return `${Number(value).toLocaleString(locale(), {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   })} %`;
@@ -104,7 +113,7 @@ export function fmtMonth(month: string | null | undefined): string {
   const [year, m] = month.split('-');
   const index = Number(m) - 1;
   if (!year || Number.isNaN(index)) return month;
-  const label = new Date(Number(year), index, 1).toLocaleDateString(LOCALE, { month: 'short' });
+  const label = new Date(Number(year), index, 1).toLocaleDateString(locale(), { month: 'short' });
   return `${label} ${year}`;
 }
 
@@ -113,5 +122,5 @@ export function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—';
   const date = new Date(`${iso.slice(0, 10)}T00:00:00`);
   if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleDateString(LOCALE, { day: 'numeric', month: 'short', year: 'numeric' });
+  return date.toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' });
 }

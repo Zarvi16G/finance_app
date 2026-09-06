@@ -14,10 +14,12 @@
  * Deudas screen where their payment schedule lives.
  */
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import PageHeader from '../shared/PageHeader';
 import BaseCurrencyBadge from '../shared/BaseCurrencyBadge';
+import ConversionNotice from '../shared/ConversionNotice';
 import { Button } from '../ui/button';
 import AssetForm from './AssetForm';
 import { assetsApi, assetTypeLabel, patrimonyApi } from '../../api/patrimony';
@@ -30,6 +32,7 @@ import type { Asset, Debt, PatrimonySummary } from '../../types';
 const COLS = 'grid grid-cols-[1.6fr_1fr_0.9fr_1fr_90px] items-center gap-5';
 
 export default function Patrimony() {
+  const { t } = useTranslation();
   const [summary, setSummary] = useState<PatrimonySummary | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [debts, setDebts] = useState<Debt[]>([]);
@@ -60,7 +63,7 @@ export default function Patrimony() {
   }, [load]);
 
   const handleDelete = async (asset: Asset) => {
-    if (!window.confirm(`¿Eliminar "${asset.name}" del registro?`)) return;
+    if (!window.confirm(t('patrimony.confirmDelete', { name: asset.name }))) return;
     try {
       await assetsApi.remove(asset.id);
       await load();
@@ -69,7 +72,7 @@ export default function Patrimony() {
     }
   };
 
-  if (loading) return <p className="text-sm text-muted-foreground">Cargando tu patrimonio…</p>;
+  if (loading) return <p className="text-sm text-muted-foreground">{t('patrimony.loading')}</p>;
   if (!summary) {
     return <p className="border border-error/40 bg-lighterror p-4 text-sm text-error">{error}</p>;
   }
@@ -81,12 +84,12 @@ export default function Patrimony() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow="Registro patrimonial"
-        title="Lo que tienes, menos lo que debes"
+        eyebrow={t('patrimony.eyebrow')}
+        title={t('patrimony.title')}
         actions={
           <>
             <BaseCurrencyBadge currency={base} />
-            <Button onClick={() => setEditing('new')}>Añadir activo</Button>
+            <Button onClick={() => setEditing('new')}>{t('patrimony.addAsset')}</Button>
           </>
         }
       />
@@ -95,40 +98,42 @@ export default function Patrimony() {
         <p className="border border-error/40 bg-lighterror p-3 text-sm text-error">{error}</p>
       )}
 
+      <ConversionNotice report={summary.conversion} baseCurrency={base} />
+
       {/* The balance, stated as an equation */}
       <div className="flex flex-wrap items-center gap-10 border-y rule-strong border-b-border py-6">
         <div>
-          <div className="eyebrow-sm mb-2.5">Activos</div>
+          <div className="eyebrow-sm mb-2.5">{t('patrimony.assets')}</div>
           <div className="fig text-[32px] font-medium text-success">
             {fmtFigure(summary.total_assets, base)}
           </div>
         </div>
         <div className="fig text-[28px] text-secondary">−</div>
         <div>
-          <div className="eyebrow-sm mb-2.5">Pasivos</div>
+          <div className="eyebrow-sm mb-2.5">{t('patrimony.liabilities')}</div>
           <div className="fig text-[32px] font-medium text-error">
             {fmtFigure(summary.total_liabilities, base)}
           </div>
         </div>
         <div className="fig text-[28px] text-secondary">=</div>
         <div>
-          <div className="eyebrow-sm mb-2.5">Patrimonio neto</div>
+          <div className="eyebrow-sm mb-2.5">{t('patrimony.netWorth')}</div>
           <div className="fig text-[40px] font-medium leading-none">
             {fmtFigure(summary.net_worth, base)}
           </div>
         </div>
         <div className="ml-auto text-right">
-          <div className="eyebrow-sm mb-2.5">Deuda sobre activos</div>
+          <div className="eyebrow-sm mb-2.5">{t('patrimony.debtToAsset')}</div>
           <div className="fig text-2xl font-medium">
             {summary.debt_to_asset === null ? (
-              <span className="text-secondary">Sin determinar</span>
+              <span className="text-secondary">{t('common.notDetermined')}</span>
             ) : (
               fmtPercent(summary.debt_to_asset, 2)
             )}
           </div>
           {summary.debt_to_asset === null && (
             <div className="mt-1.5 text-xs text-muted-foreground">
-              Sin activos registrados no hay de qué tomar la proporción.
+              {t('patrimony.noAssetsRatio')}
             </div>
           )}
         </div>
@@ -138,9 +143,9 @@ export default function Patrimony() {
       {summary.total_assets > 0 && (
         <div>
           <div className="mb-3.5 flex flex-wrap items-baseline justify-between gap-3">
-            <div className="fig text-[19px] font-medium">Líquido frente a inmovilizado</div>
+            <div className="fig text-[19px] font-medium">{t('patrimony.liquidVsIlliquid')}</div>
             <span className="text-[13px] text-muted-foreground">
-              Una casa es patrimonio, pero no paga el arriendo del mes que viene.
+              {t('patrimony.liquidNote')}
             </span>
           </div>
           <div className="flex h-11 border rule-strong">
@@ -150,7 +155,7 @@ export default function Patrimony() {
           <div className="mt-2.5 flex flex-wrap justify-between gap-3">
             <div className="flex items-center gap-2.5">
               <span className="h-3 w-3 bg-primary" />
-              <span className="text-[13px]">Líquido</span>
+              <span className="text-[13px]">{t('patrimony.liquid')}</span>
               <span className="fig text-sm font-medium">
                 {fmtFigure(summary.liquid_assets, base)}
               </span>
@@ -158,7 +163,7 @@ export default function Patrimony() {
             </div>
             <div className="flex items-center gap-2.5">
               <span className="h-3 w-3 border border-input bg-muted" />
-              <span className="text-[13px]">Inmovilizado</span>
+              <span className="text-[13px]">{t('patrimony.illiquid')}</span>
               <span className="fig text-sm font-medium">
                 {fmtFigure(summary.illiquid_assets, base)}
               </span>
@@ -170,20 +175,18 @@ export default function Patrimony() {
 
       {/* Asset register */}
       <div>
-        <div className="fig mb-1 text-[19px] font-medium">Activos</div>
+        <div className="fig mb-1 text-[19px] font-medium">{t('patrimony.assets')}</div>
         {assets.length === 0 ? (
           <p className="border border-input bg-card p-6 text-sm text-inksoft">
-            Todavía no registras nada. Un activo es cualquier cosa que posees y puedes valorar: una
-            cuenta de ahorros, un apartamento, una inversión. Sin ellos, el patrimonio neto es solo
-            tu deuda en negativo.
+{t('patrimony.noAssets')}
           </p>
         ) : (
           <>
             <div className={`${COLS} border-b rule-strong py-3`}>
-              <span className="eyebrow-sm">Nombre</span>
-              <span className="eyebrow-sm">Tipo</span>
-              <span className="eyebrow-sm">Liquidez</span>
-              <span className="eyebrow-sm text-right">Valor</span>
+              <span className="eyebrow-sm">{t('patrimony.name')}</span>
+              <span className="eyebrow-sm">{t('patrimony.type')}</span>
+              <span className="eyebrow-sm">{t('patrimony.liquidity')}</span>
+              <span className="eyebrow-sm text-right">{t('patrimony.value')}</span>
               <span />
             </div>
             {assets.map((asset) => (
@@ -192,8 +195,8 @@ export default function Patrimony() {
                   <div className="truncate text-[15px]">{asset.name}</div>
                   <div className="mt-1 text-xs text-muted-foreground">
                     {asset.valued_at
-                      ? `Valorado el ${fmtDate(asset.valued_at)}`
-                      : 'Sin fecha de valoración'}
+                      ? t('patrimony.valuedOn', { date: fmtDate(asset.valued_at) })
+                      : t('patrimony.noValuationDate')}
                   </div>
                 </div>
                 <span className="text-sm text-inksoft">{assetTypeLabel(asset.asset_type)}</span>
@@ -204,7 +207,7 @@ export default function Patrimony() {
                       : 'text-xs text-muted-foreground'
                   }
                 >
-                  {asset.is_liquid ? 'Líquido' : 'Inmovilizado'}
+                  {t(asset.is_liquid ? 'patrimony.liquid' : 'patrimony.illiquid')}
                 </span>
                 {/* Each asset is listed in the currency it is actually held
                     in, so a column of values can legitimately mix currencies.
@@ -222,7 +225,7 @@ export default function Patrimony() {
                   <button
                     type="button"
                     onClick={() => setEditing(asset)}
-                    aria-label={`Editar ${asset.name}`}
+                    aria-label={`${t('common.edit')} ${asset.name}`}
                     className="text-muted-foreground transition-colors hover:text-foreground"
                   >
                     <Icon icon="solar:pen-linear" height={16} width={16} />
@@ -230,7 +233,7 @@ export default function Patrimony() {
                   <button
                     type="button"
                     onClick={() => handleDelete(asset)}
-                    aria-label={`Eliminar ${asset.name}`}
+                    aria-label={`${t('common.delete')} ${asset.name}`}
                     className="text-muted-foreground transition-colors hover:text-error"
                   >
                     <Icon icon="solar:trash-bin-minimalistic-linear" height={16} width={16} />
@@ -242,10 +245,10 @@ export default function Patrimony() {
         )}
 
         {/* Liabilities: the other side, read-only */}
-        <div className="fig mb-1 mt-7 text-[19px] font-medium">Pasivos</div>
+        <div className="fig mb-1 mt-7 text-[19px] font-medium">{t('patrimony.liabilities')}</div>
         {debts.length === 0 ? (
           <p className="border-t rule-strong pt-4 text-sm text-inksoft">
-            No tienes deudas activas registradas.
+            {t('patrimony.noDebts')}
           </p>
         ) : (
           debts.map((debt, index) => (
@@ -258,8 +261,11 @@ export default function Patrimony() {
               <div className="min-w-0">
                 <div className="truncate text-[15px]">{debt.name}</div>
                 <div className="mt-1 text-xs text-muted-foreground">
-                  {debt.creditor || 'Sin acreedor'} · {fmtPercent(Number(debt.interest_rate), 2)}{' '}
-                  anual · cuota {fmtFigure(debt.minimum_payment, base)}
+                  {t('patrimony.debtDetail', {
+                    creditor: debt.creditor || t('patrimony.noCreditor'),
+                    rate: fmtPercent(Number(debt.interest_rate), 2),
+                    payment: fmtFigure(debt.minimum_payment, base),
+                  })}
                 </div>
               </div>
               <span className="text-sm text-inksoft">
@@ -277,7 +283,7 @@ export default function Patrimony() {
               <div className="flex justify-end">
                 <Link
                   to={`/deudas/${debt.id}`}
-                  aria-label={`Ver ${debt.name}`}
+                  aria-label={debt.name}
                   className="text-muted-foreground transition-colors hover:text-foreground"
                 >
                   <Icon icon="solar:arrow-right-linear" height={16} width={16} />

@@ -11,6 +11,8 @@
  * missing, rather than disappearing or rendering as zero.
  */
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import {
   Bar,
   CartesianGrid,
@@ -23,6 +25,7 @@ import {
 } from 'recharts';
 import PageHeader from '../shared/PageHeader';
 import BaseCurrencyBadge from '../shared/BaseCurrencyBadge';
+import ConversionNotice from '../shared/ConversionNotice';
 import StatusBadge from '../shared/StatusBadge';
 import { Figure } from '../shared/Figure';
 import { wealthnessApi } from '../../api/wealthness';
@@ -40,18 +43,28 @@ import type { MetricStatus, NetFlowPoint, WealthnessOverview } from '../../types
 
 const WINDOWS = [6, 12, 24];
 
-/** The headline sentence, built from the trend the backend reported. */
-function headline(data: WealthnessOverview): string {
+/** The headline sentence, built from the trend the backend reported.
+ *
+ *  Each shape is its own dictionary key rather than a sentence assembled from
+ *  fragments: word order and agreement differ between languages, and gluing
+ *  a verb into a template is how a translation ends up ungrammatical. */
+function headlineFor(data: WealthnessOverview, t: TFunction): string {
   const { direction, change_pct, basis } = data.trend;
-  const subject = basis === 'net_flow' ? 'Tu flujo acumulado' : 'Tu patrimonio';
+  const subject = t(
+    basis === 'net_flow' ? 'wealthness.subjectNetFlow' : 'wealthness.subjectNetWorth',
+  );
 
-  if (direction === 'unknown') return 'Todavía no hay historia suficiente para ver una dirección.';
-  if (direction === 'stable') return `${subject} se mantuvo estable en este periodo.`;
+  if (direction === 'unknown') return t('wealthness.unknownTrend');
+  if (direction === 'stable') return t('wealthness.stable', { subject });
   if (change_pct === null) {
-    return direction === 'growing' ? `${subject} está creciendo.` : `${subject} está bajando.`;
+    return t(direction === 'growing' ? 'wealthness.growing' : 'wealthness.decliningPlain', {
+      subject,
+    });
   }
-  const verb = direction === 'growing' ? 'creció' : 'bajó';
-  return `${subject} ${verb} un ${fmtPercent(Math.abs(change_pct))} en este periodo.`;
+  return t(direction === 'growing' ? 'wealthness.grew' : 'wealthness.declined', {
+    subject,
+    pct: fmtPercent(Math.abs(change_pct)),
+  });
 }
 
 /** One metric: name, figure, the reasoning, and the band. */
@@ -86,6 +99,7 @@ function MetricRow({
 }
 
 export default function Wealthness() {
+  const { t } = useTranslation();
   const [months, setMonths] = useState(12);
   const [data, setData] = useState<WealthnessOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -109,7 +123,7 @@ export default function Wealthness() {
   }, [load]);
 
   if (loading && !data) {
-    return <p className="text-sm text-muted-foreground">Cargando tu salud financiera…</p>;
+    return <p className="text-sm text-muted-foreground">{t('wealthness.loading')}</p>;
   }
   if (error) {
     return <p className="border border-error/40 bg-lighterror p-4 text-sm text-error">{error}</p>;
@@ -122,13 +136,18 @@ export default function Wealthness() {
 
   return (
     <div className="flex flex-col gap-9">
+      <ConversionNotice report={data.conversion} baseCurrency={base} />
+
       <PageHeader
-        eyebrow={`Salud financiera · ${fmtMonth(data.period.from)} – ${fmtMonth(data.period.to)}`}
-        title={headline(data)}
+        eyebrow={t('wealthness.eyebrow', {
+          from: fmtMonth(data.period.from),
+          to: fmtMonth(data.period.to),
+        })}
+        title={headlineFor(data, t)}
         description={
           `${trendNote(data.trend.basis, data.trend.note)} ` +
-          `${metricNote('savings_rate', savings.status, savings.note)} ` +
-          `${metricNote('emergency_fund', fund.status, fund.note)}`
+          `${metricNote('savingsRate', savings.status, savings.note)} ` +
+          `${metricNote('emergencyFund', fund.status, fund.note)}`
         }
         actions={
           <div className="flex flex-col items-end gap-4">
@@ -145,7 +164,7 @@ export default function Wealthness() {
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  {w} m
+                  {t('wealthness.window', { count: w })}
                 </button>
               ))}
             </div>
@@ -156,18 +175,20 @@ export default function Wealthness() {
       {/* Net worth, stated once at full size — everything below explains it. */}
       <div className="flex flex-wrap items-end justify-between gap-6 border-t rule-strong pt-6">
         <div>
-          <div className="eyebrow-sm mb-3">Patrimonio neto</div>
+          <div className="eyebrow-sm mb-3">{t('patrimony.netWorth')}</div>
           <div className="fig text-[42px] font-medium leading-none">
             {fmtFigure(worth.current, base)}
           </div>
           <div className="mt-3 text-[13px] text-inksoft">
-            {fmtFigure(worth.total_assets, base)} en activos −{' '}
-            {fmtFigure(worth.total_liabilities, base)} en deuda
+            {t('wealthness.assetsMinusDebt', {
+              assets: fmtFigure(worth.total_assets, base),
+              debt: fmtFigure(worth.total_liabilities, base),
+            })}
           </div>
         </div>
         {data.trend.change_pct !== null && (
           <div className="text-right">
-            <div className="eyebrow-sm mb-3">Variación del periodo</div>
+            <div className="eyebrow-sm mb-3">{t('wealthness.periodChange')}</div>
             <Figure
               className="text-[26px] font-medium"
               tone={data.trend.direction === 'declining' ? 'expense' : 'income'}
@@ -185,38 +206,38 @@ export default function Wealthness() {
       <div>
         <MetricRow
           strong
-          name="Tasa de ahorro"
+          name={t('wealthness.savingsRate')}
           value={savings.value === null ? <span className="text-secondary">—</span> : fmtPercent(savings.value)}
-          note={metricNote('savings_rate', savings.status, savings.note)}
+          note={metricNote('savingsRate', savings.status, savings.note)}
           status={savings.status}
         />
         <MetricRow
-          name="Fondo de emergencia"
+          name={t('wealthness.emergencyFund')}
           value={
             fund.months_covered === null ? (
               <span className="text-secondary">—</span>
             ) : (
               <>
                 {fmtNumber(fund.months_covered)}{' '}
-                <span className="text-base text-muted-foreground">meses</span>
+                <span className="text-base text-muted-foreground">{t('common.months')}</span>
               </>
             )
           }
           note={
             fund.months_covered === null
-              ? metricNote('emergency_fund', fund.status, fund.note)
-              : `${metricNote('emergency_fund', fund.status, fund.note)} ${fmtFigure(
-                  fund.liquid_assets,
-                  base,
-                )} líquidos ÷ ${fmtFigure(
-                  fund.avg_monthly_essentials,
-                  base,
-                )} de gasto esencial mensual.`
+              ? metricNote('emergencyFund', fund.status, fund.note)
+              : `${metricNote('emergencyFund', fund.status, fund.note)} ${t(
+                  'wealthness.fundDetail',
+                  {
+                    liquid: fmtFigure(fund.liquid_assets, base),
+                    monthly: fmtFigure(fund.avg_monthly_essentials, base),
+                  },
+                )}`
           }
           status={fund.status}
         />
         <MetricRow
-          name="Carga de deuda"
+          name={t('wealthness.debtLoad')}
           value={
             debt.debt_to_income === null ? (
               <span className="text-secondary">—</span>
@@ -224,7 +245,7 @@ export default function Wealthness() {
               fmtPercent(debt.debt_to_income)
             )
           }
-          note={metricNote('debt_load', debt.status, debt.note)}
+          note={metricNote('debtLoad', debt.status, debt.note)}
           status={debt.status}
         />
         <div className="border-b border-border" />
@@ -233,27 +254,26 @@ export default function Wealthness() {
       {/* Monthly net flow */}
       <div>
         <div className="mb-4 flex items-baseline justify-between">
-          <div className="fig text-[19px] font-medium">Flujo neto mensual</div>
+          <div className="fig text-[19px] font-medium">{t('wealthness.monthlyNetFlow')}</div>
           <div className="flex gap-5 text-[13px] text-inksoft">
             <span className="flex items-center gap-2">
               <span className="h-0.5 w-5" style={{ background: palette.income }} />
-              Ingresos
+              {t('dashboard.income')}
             </span>
             <span className="flex items-center gap-2">
               <span className="h-0.5 w-5" style={{ background: palette.expense }} />
-              Gastos
+              {t('dashboard.expenses')}
             </span>
             <span className="flex items-center gap-2">
               <span className="h-1.5 w-5" style={{ background: palette.brand }} />
-              Neto
+              {t('dashboard.net')}
             </span>
           </div>
         </div>
 
         {series.length === 0 ? (
           <p className="border border-input bg-card p-6 text-sm text-inksoft">
-            No hay instantáneas mensuales todavía. Se generan a partir de tus movimientos: en
-            cuanto registres el primer mes, esta gráfica empieza a llenarse.
+{t('wealthness.noSnapshots')}
           </p>
         ) : (
           <div className="h-[260px] w-full">
@@ -304,9 +324,7 @@ export default function Wealthness() {
       </div>
 
       <p className="m-0 max-w-[78ch] text-[13px] italic leading-relaxed text-muted-foreground">
-        Los umbrales anteriores son reglas convencionales de finanzas personales — tres a seis
-        meses de gastos ahorrados, deuda bajo el 36 % del ingreso — no un cálculo derivado de tus
-        datos.
+{t('wealthness.footnote')}
       </p>
     </div>
   );

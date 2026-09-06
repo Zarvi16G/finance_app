@@ -8,6 +8,7 @@
  * while the user has not touched it themselves.
  */
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Dialog,
   DialogContent,
@@ -20,7 +21,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { ASSET_TYPES, LIQUID_BY_DEFAULT, assetsApi } from '../../api/patrimony';
+import { ASSET_TYPES, LIQUID_BY_DEFAULT, assetTypeLabel, assetsApi } from '../../api/patrimony';
 import { currencyApi } from '../../api/currency';
 import { getErrorMessage } from '../../api/client';
 import type { Asset, Currency } from '../../types';
@@ -60,6 +61,7 @@ export default function AssetForm({
   onClose: () => void;
   onSaved: () => void | Promise<void>;
 }) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState<Draft>(() =>
     asset
       ? {
@@ -96,10 +98,10 @@ export default function AssetForm({
 
   const submit = async () => {
     setError(null);
-    if (!draft.name.trim()) return setError('Ponle un nombre al activo.');
+    if (!draft.name.trim()) return setError(t('assetForm.errorName'));
     const value = Number(draft.current_value);
     if (!Number.isFinite(value) || value < 0) {
-      return setError('El valor debe ser un número igual o mayor que cero.');
+      return setError(t('assetForm.errorValue'));
     }
 
     setSaving(true);
@@ -129,44 +131,43 @@ export default function AssetForm({
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="fig text-xl font-medium">
-            {asset ? 'Editar activo' : 'Añadir activo'}
+            {t(asset ? 'assetForm.editTitle' : 'assetForm.addTitle')}
           </DialogTitle>
           <DialogDescription>
-            Guarda el valor en la moneda en que realmente está. La conversión a {baseCurrency} se
-            calcula al leerlo, nunca se escribe encima del monto original.
+{t('assetForm.description', { base: baseCurrency })}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4">
           <div>
-            <Label htmlFor="a-name">Nombre</Label>
+            <Label htmlFor="a-name">{t('assetForm.name')}</Label>
             <Input
               id="a-name"
               className="mt-2"
               value={draft.name}
               onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-              placeholder="Apartamento, Ahorros Bancolombia…"
+              placeholder={t('assetForm.namePlaceholder')}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="a-type">Tipo</Label>
+              <Label htmlFor="a-type">{t('assetForm.type')}</Label>
               <Select value={draft.asset_type} onValueChange={setType}>
                 <SelectTrigger id="a-type" className="mt-2">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {ASSET_TYPES.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>
-                      {t.label}
+                  {ASSET_TYPES.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {assetTypeLabel(value)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label htmlFor="a-currency">Moneda</Label>
+              <Label htmlFor="a-currency">{t('assetForm.currency')}</Label>
               <Select
                 value={draft.currency}
                 onValueChange={(currency) => setDraft({ ...draft, currency })}
@@ -190,7 +191,7 @@ export default function AssetForm({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="a-value">Valor actual</Label>
+              <Label htmlFor="a-value">{t('assetForm.currentValue')}</Label>
               <Input
                 id="a-value"
                 className="mt-2"
@@ -202,7 +203,7 @@ export default function AssetForm({
               />
             </div>
             <div>
-              <Label htmlFor="a-valued">Valorado el</Label>
+              <Label htmlFor="a-valued">{t('assetForm.valuedOn')}</Label>
               <Input
                 id="a-valued"
                 className="mt-2"
@@ -225,17 +226,16 @@ export default function AssetForm({
                 }}
               />
               <span>
-                <span className="text-sm font-semibold">Es líquido</span>
+                <span className="text-sm font-semibold">{t('assetForm.isLiquid')}</span>
                 <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
-                  Puedes convertirlo en efectivo en días. Solo los activos líquidos cuentan para el
-                  fondo de emergencia. Un CDT a cinco años es ahorro, pero no es líquido.
+{t('assetForm.isLiquidNote')}
                 </span>
               </span>
             </label>
           </div>
 
           <div>
-            <Label htmlFor="a-notes">Notas</Label>
+            <Label htmlFor="a-notes">{t('assetForm.notes')}</Label>
             <Input
               id="a-notes"
               className="mt-2"
@@ -249,10 +249,10 @@ export default function AssetForm({
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={saving}>
-            Cancelar
+            {t('common.cancel')}
           </Button>
           <Button onClick={submit} disabled={saving}>
-            {saving ? 'Guardando…' : 'Guardar'}
+            {saving ? t('common.saving') : t('common.save')}
           </Button>
         </DialogFooter>
       </DialogContent>

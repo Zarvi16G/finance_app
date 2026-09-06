@@ -1,26 +1,18 @@
 /**
  * The status of a Wealthness metric, rendered as an underlined uppercase word.
  *
- * The mapping from the backend's band to a colour and a Spanish word lives
- * here and nowhere else, so the same band always reads the same way across
- * the dashboard, the Wealthness page and anywhere else it surfaces.
+ * The mapping from the backend's band to a colour lives here and nowhere
+ * else, so the same band always reads the same way across the dashboard, the
+ * Wealthness page and anywhere else it surfaces. The word itself comes from
+ * the dictionary, keyed by the same band.
  *
  * `unknown` is not an error state and is not red: it means the backend
  * declined to guess. It gets the faint tone, and the screens that show it
  * pair it with a sentence saying what is missing.
  */
+import { useTranslation } from 'react-i18next';
 import { cn } from '../../lib/utils';
 import type { MetricStatus } from '../../types';
-
-const LABELS: Record<MetricStatus, string> = {
-  strong: 'Sólida',
-  adequate: 'Suficiente',
-  healthy: 'Sana',
-  low: 'Baja',
-  high: 'Alta',
-  critical: 'Crítica',
-  unknown: 'Sin determinar',
-};
 
 /** Green for a good band, amber for the middle, red for one needing action. */
 const TONES: Record<MetricStatus, string> = {
@@ -43,6 +35,7 @@ export default function StatusBadge({
   label?: string;
   className?: string;
 }) {
+  const { t } = useTranslation();
   const tone = TONES[status] ?? TONES.unknown;
   return (
     <span
@@ -52,7 +45,7 @@ export default function StatusBadge({
         className,
       )}
     >
-      {label ?? LABELS[status] ?? status}
+      {label ?? t(`status.${status}`, status)}
     </span>
   );
 }

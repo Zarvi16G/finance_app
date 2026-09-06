@@ -37,7 +37,7 @@ class GoalsAnalysisView(APIView):
         base = base_currency_for(request.user)
 
         def in_base(amount, goal):
-            return float(currency_service.convert_safe(amount, goal.currency or base, base))
+            return float(currency_service.Total.converted(amount, goal.currency or base, base))
 
         # Group goals by category
         category_map = {}

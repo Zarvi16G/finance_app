@@ -29,6 +29,7 @@ def build_dashboard_data(start_date, end_date, user):
     expense_data = _monthly_totals(records.filter(type='expense'), base)
 
     debts = Debt.objects.filter(owner=user, status='active')
+    unconvertible = currency_service.unconvertible_currencies([records, debts], base)
 
     return {
         'period': {'start': start_date, 'end': end_date},
@@ -40,6 +41,13 @@ def build_dashboard_data(start_date, end_date, user):
         'financial_ratios': calculate_financial_ratios(records, start_date, end_date, user, base),
         'debt_summary': get_debt_summary(debts, base),
         'summary': get_summary_stats(records, base),
+        # Amounts in a currency with no rate are excluded from every total
+        # above rather than added unconverted. Naming those currencies here
+        # is what lets a client say the figures are partial.
+        'conversion': {
+            'complete': not unconvertible,
+            'unconvertible_currencies': unconvertible,
+        },
     }
 
 
@@ -53,7 +61,7 @@ def _monthly_totals(records, base):
     )
     per_month = {}
     for row in rows:
-        converted = currency_service.convert_safe(
+        converted = currency_service.Total.converted(
             row['total'] or 0, row['currency'] or base, base
         )
         per_month[row['month']] = per_month.get(row['month'], 0) + float(converted)
@@ -72,7 +80,7 @@ def _totals_by_category(records, base):
     totals, counts = {}, {}
     for row in rows:
         category = row['category']
-        converted = currency_service.convert_safe(
+        converted = currency_service.Total.converted(
             row['total'] or 0, row['currency'] or base, base
         )
         totals[category] = totals.get(category, 0) + float(converted)
@@ -234,7 +242,7 @@ def get_monthly_trends(records, start_date, end_date, base):
         month_key = item['month'].strftime('%Y-%m')
         if month_key not in month_map:
             month_map[month_key] = {'income': 0, 'expenses': 0, 'net': 0}
-        amount = float(currency_service.convert_safe(
+        amount = float(currency_service.Total.converted(
             item['total'] or 0, item['currency'] or base, base
         ))
         if item['type'] == 'income':
@@ -354,7 +362,7 @@ def get_debt_summary(debts, base):
     total_balance = float(currency_service.sum_in(debts, base, field='current_balance'))
     total_min_payment = float(currency_service.sum_in(debts, base, field='minimum_payment'))
     total_interest = sum(
-        float(currency_service.convert_safe(d.monthly_interest, d.currency or base, base))
+        float(currency_service.Total.converted(d.monthly_interest, d.currency or base, base))
         for d in debts
     )
 
@@ -364,7 +372,7 @@ def get_debt_summary(debts, base):
             by_type[debt.debt_type] = {'count': 0, 'total_balance': 0}
         by_type[debt.debt_type]['count'] += 1
         by_type[debt.debt_type]['total_balance'] += float(
-            currency_service.convert_safe(debt.current_balance, debt.currency or base, base)
+            currency_service.Total.converted(debt.current_balance, debt.currency or base, base)
         )
 
     return {
@@ -412,12 +420,12 @@ def estimate_payoff_timeline(debts, base):
             'name': debt.name,
             'type': debt.debt_type,
             'currency': source,
-            'balance': float(currency_service.convert_safe(balance, source, base)),
+            'balance': float(currency_service.Total.converted(balance, source, base)),
             'interest_rate': float(debt.interest_rate),
-            'minimum_payment': float(currency_service.convert_safe(min_pay, source, base)),
+            'minimum_payment': float(currency_service.Total.converted(min_pay, source, base)),
             'estimated_months': round(months, 1) if months != float('inf') else None,
             'total_interest': (
-                float(currency_service.convert_safe(total_interest, source, base))
+                float(currency_service.Total.converted(total_interest, source, base))
                 if total_interest is not None else None
             ),
         })

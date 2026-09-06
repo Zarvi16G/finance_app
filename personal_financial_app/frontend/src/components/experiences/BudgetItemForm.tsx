@@ -7,6 +7,7 @@
  * belongs to the trip it was created under.
  */
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Dialog,
   DialogContent,
@@ -19,7 +20,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { BUDGET_CATEGORIES, budgetItemsApi } from '../../api/experiences';
+import { BUDGET_CATEGORIES, budgetCategoryLabel, budgetItemsApi } from '../../api/experiences';
 import { currencyApi } from '../../api/currency';
 import { getErrorMessage } from '../../api/client';
 import type { Currency, ExperienceBudgetItem } from '../../types';
@@ -39,6 +40,7 @@ export default function BudgetItemForm({
   onClose: () => void;
   onSaved: () => void | Promise<void>;
 }) {
+  const { t } = useTranslation();
   const [label, setLabel] = useState(item?.label ?? '');
   const [category, setCategory] = useState(item?.category ?? 'other');
   const [estimated, setEstimated] = useState(String(item?.estimated_amount ?? ''));
@@ -62,10 +64,10 @@ export default function BudgetItemForm({
 
   const submit = async () => {
     setError(null);
-    if (!label.trim()) return setError('Ponle un nombre a la línea.');
+    if (!label.trim()) return setError(t('budgetForm.errorLabel'));
     const value = Number(estimated);
     if (!Number.isFinite(value) || value < 0) {
-      return setError('El estimado debe ser un número igual o mayor que cero.');
+      return setError(t('budgetForm.errorEstimated'));
     }
 
     setSaving(true);
@@ -95,44 +97,43 @@ export default function BudgetItemForm({
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="fig text-xl font-medium">
-            {item ? 'Editar línea' : 'Añadir línea'}
+            {t(item ? 'budgetForm.editTitle' : 'budgetForm.addTitle')}
           </DialogTitle>
           <DialogDescription>
-            Del presupuesto de «{goalTitle}». Guarda el importe en la moneda en que lo vas a pagar;
-            el total se convierte a {baseCurrency}.
+{t('budgetForm.description', { goal: goalTitle, base: baseCurrency })}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4">
           <div>
-            <Label htmlFor="b-label">Concepto</Label>
+            <Label htmlFor="b-label">{t('budgetForm.label')}</Label>
             <Input
               id="b-label"
               className="mt-2"
               value={label}
               onChange={(e) => setLabel(e.target.value)}
-              placeholder="Vuelos, hotel, entradas…"
+              placeholder={t('budgetForm.labelPlaceholder')}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="b-category">Categoría</Label>
+              <Label htmlFor="b-category">{t('budgetForm.category')}</Label>
               <Select value={category} onValueChange={setCategory}>
                 <SelectTrigger id="b-category" className="mt-2">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {BUDGET_CATEGORIES.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>
-                      {c.label}
+                  {BUDGET_CATEGORIES.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {budgetCategoryLabel(value)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label htmlFor="b-currency">Moneda</Label>
+              <Label htmlFor="b-currency">{t('budgetForm.currency')}</Label>
               <Select value={currency} onValueChange={setCurrency}>
                 <SelectTrigger id="b-currency" className="mt-2">
                   <SelectValue />
@@ -153,7 +154,7 @@ export default function BudgetItemForm({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="b-estimated">Estimado</Label>
+              <Label htmlFor="b-estimated">{t('budgetForm.estimated')}</Label>
               <Input
                 id="b-estimated"
                 className="mt-2"
@@ -165,7 +166,7 @@ export default function BudgetItemForm({
               />
             </div>
             <div>
-              <Label htmlFor="b-actual">Real</Label>
+              <Label htmlFor="b-actual">{t('budgetForm.actual')}</Label>
               <Input
                 id="b-actual"
                 className="mt-2"
@@ -174,11 +175,10 @@ export default function BudgetItemForm({
                 step="0.01"
                 value={actual}
                 onChange={(e) => setActual(e.target.value)}
-                placeholder="Cuando lo pagues"
+                placeholder={t('budgetForm.actualPlaceholder')}
               />
               <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                Déjalo vacío hasta que gastes. El estimado no se sobrescribe: la diferencia entre
-                los dos es lo que mejora tu próximo presupuesto.
+{t('budgetForm.actualNote')}
               </p>
             </div>
           </div>
@@ -191,10 +191,9 @@ export default function BudgetItemForm({
               onChange={(e) => setIsBooked(e.target.checked)}
             />
             <span>
-              <span className="text-sm font-semibold">Ya reservado</span>
+              <span className="text-sm font-semibold">{t('budgetForm.booked')}</span>
               <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
-                Pagado o reservado, así que el precio ya no se moverá — ni por tarifas ni por tipo
-                de cambio.
+{t('budgetForm.bookedNote')}
               </span>
             </span>
           </label>
@@ -204,10 +203,10 @@ export default function BudgetItemForm({
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={saving}>
-            Cancelar
+            {t('common.cancel')}
           </Button>
           <Button onClick={submit} disabled={saving}>
-            {saving ? 'Guardando…' : 'Guardar'}
+            {saving ? t('common.saving') : t('common.save')}
           </Button>
         </DialogFooter>
       </DialogContent>

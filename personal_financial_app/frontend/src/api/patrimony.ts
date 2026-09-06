@@ -6,6 +6,7 @@
  * currency — the conversion is the backend's job, because doing it here would
  * mean adding pesos to dollars in the browser.
  */
+import i18n from '../i18n';
 import { apiClient } from './client';
 import type { Asset, PatrimonySummary } from '../types';
 
@@ -37,21 +38,15 @@ export const assetsApi = {
   },
 };
 
-/** The asset types the backend accepts, with their Spanish labels. */
-export const ASSET_TYPES: Array<{ value: string; label: string }> = [
-  { value: 'cash', label: 'Efectivo' },
-  { value: 'savings', label: 'Ahorros' },
-  { value: 'investment', label: 'Inversión' },
-  { value: 'retirement', label: 'Pensión' },
-  { value: 'property', label: 'Propiedad' },
-  { value: 'vehicle', label: 'Vehículo' },
-  { value: 'business', label: 'Participación en negocio' },
-  { value: 'receivable', label: 'Dinero que me deben' },
-  { value: 'other', label: 'Otro' },
-];
+/** The asset types the backend accepts. Values are the API's; the words come
+ *  from the dictionary, so they follow the interface language. */
+export const ASSET_TYPES = [
+  'cash', 'savings', 'investment', 'retirement', 'property',
+  'vehicle', 'business', 'receivable', 'other',
+] as const;
 
 export const assetTypeLabel = (value: string): string =>
-  ASSET_TYPES.find((t) => t.value === value)?.label ?? value;
+  i18n.t(`assetTypes.${value}`, { defaultValue: value });
 
 /**
  * Which types the backend treats as liquid by default. Mirrors

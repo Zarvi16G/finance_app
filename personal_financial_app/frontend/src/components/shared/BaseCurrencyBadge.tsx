@@ -7,16 +7,18 @@
  * a way that a total in a single-currency app never is, so the design puts
  * this on every screen that adds anything up.
  */
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
 export default function BaseCurrencyBadge({ currency }: { currency: string | undefined }) {
+  const { t } = useTranslation();
   return (
     <Link
       to="/perfil"
-      title="Cambiar la moneda base en tu perfil"
+      title={t('currency.changeInProfile')}
       className="flex items-center gap-2.5 border border-input px-3.5 py-2 transition-colors hover:border-primary"
     >
-      <span className="text-xs text-muted-foreground">Totales en</span>
+      <span className="text-xs text-muted-foreground">{t('currency.totalsIn')}</span>
       <span className="fig text-sm font-semibold text-foreground">{currency ?? '—'}</span>
     </Link>
   );

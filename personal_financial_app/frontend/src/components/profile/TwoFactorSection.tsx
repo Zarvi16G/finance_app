@@ -21,6 +21,7 @@
  * this is the one place the design uses a heavy 2px frame.
  */
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '@iconify/react';
 import CodeInput from '../shared/CodeInput';
 import { Button } from '../ui/button';
@@ -31,13 +32,14 @@ import { authErrorMessage } from '../../lib/authErrors';
 import type { TwoFactorEnrollment, TwoFactorStatus } from '../../types';
 
 function BackupCodes({ codes, onDone }: { codes: string[]; onDone: () => void }) {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
 
   const download = () => {
     const blob = new Blob(
       [
-        'Códigos de recuperación · Patrimonio\n',
-        'Cada uno sirve una sola vez. Guárdalos donde no esté tu teléfono.\n\n',
+        `${t('twoFactor.codesFileHeader')}\n`,
+        `${t('twoFactor.codesFileNote')}\n\n`,
         codes.join('\n'),
         '\n',
       ],
@@ -71,10 +73,9 @@ function BackupCodes({ codes, onDone }: { codes: string[]; onDone: () => void })
           className="mt-0.5 shrink-0 text-warning"
         />
         <div>
-          <div className="fig mb-1.5 text-[19px] font-medium">Guarda estos códigos ahora</div>
+          <div className="fig mb-1.5 text-[19px] font-medium">{t('twoFactor.saveCodesTitle')}</div>
           <p className="m-0 max-w-[78ch] text-sm leading-relaxed text-inksoft">
-            Se muestran una sola vez y cada uno sirve una única vez. Son la forma de entrar si
-            pierdes el teléfono — sin ellos, perder el dispositivo es perder la cuenta.
+            {t('twoFactor.saveCodesBody')}
           </p>
         </div>
       </div>
@@ -87,13 +88,13 @@ function BackupCodes({ codes, onDone }: { codes: string[]; onDone: () => void })
       </div>
       <div className="mt-4 flex flex-wrap gap-3">
         <Button onClick={download} className="bg-foreground text-background hover:bg-foreground/90">
-          Descargar .txt
+          {t('twoFactor.downloadTxt')}
         </Button>
         <Button variant="outline" onClick={copy}>
-          {copied ? 'Copiado' : 'Copiar'}
+          {copied ? t('twoFactor.copied') : t('twoFactor.copy')}
         </Button>
         <Button variant="ghost" onClick={onDone}>
-          Ya los guardé
+          {t('twoFactor.savedThem')}
         </Button>
       </div>
     </div>
@@ -107,6 +108,7 @@ export default function TwoFactorSection({
   status: TwoFactorStatus;
   onChanged: (status: TwoFactorStatus) => void;
 }) {
+  const { t } = useTranslation();
   const [enrollment, setEnrollment] = useState<TwoFactorEnrollment | null>(null);
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
@@ -158,9 +160,9 @@ export default function TwoFactorSection({
 
   return (
     <section className="border-t rule-strong pt-6">
-      <div className="fig mb-1.5 text-[19px] font-medium">Verificación en dos pasos</div>
+      <div className="fig mb-1.5 text-[19px] font-medium">{t('twoFactor.title')}</div>
       <p className="m-0 mb-5 max-w-[72ch] text-sm leading-relaxed text-inksoft">
-        Con esto activo, tu contraseña deja de ser suficiente por sí sola para entrar.
+        {t('twoFactor.intro')}
       </p>
 
       {error && <p className="mb-4 bg-lighterror px-3 py-2 text-sm text-error">{error}</p>}
@@ -170,9 +172,9 @@ export default function TwoFactorSection({
         <div className="border border-input bg-card p-6">
           <div className="mb-3.5 flex items-start justify-between gap-4">
             <div>
-              <div className="mb-1 text-base font-semibold">App de autenticación</div>
+              <div className="mb-1 text-base font-semibold">{t('twoFactor.appTitle')}</div>
               <div className="text-[13px] text-muted-foreground">
-                Google Authenticator, 1Password, Authy…
+                {t('twoFactor.appSubtitle')}
               </div>
             </div>
             <span
@@ -182,33 +184,30 @@ export default function TwoFactorSection({
                   : 'border-input text-muted-foreground'
               }`}
             >
-              {status.enabled ? 'Activada' : 'Desactivada'}
+              {t(status.enabled ? 'twoFactor.enabled' : 'twoFactor.disabled')}
             </span>
           </div>
           <p className="m-0 mb-4 text-sm leading-relaxed text-inksoft">
-            Genera un código de seis dígitos que cambia cada 30 segundos. No depende de la señal ni
-            de ningún proveedor externo.
+            {t('twoFactor.appNote')}
           </p>
 
           {status.enabled ? (
             <div className="flex flex-col gap-3">
               <p className="m-0 text-[13px] text-muted-foreground">
-                Te quedan{' '}
-                <span className="fig text-foreground">{status.backup_codes_remaining}</span> códigos
-                de recuperación sin usar.
+                {t('twoFactor.codesRemaining', { count: status.backup_codes_remaining })}
               </p>
               <div className="flex flex-wrap gap-3">
                 <Button variant="outline" onClick={() => setPasswordFor('regenerate')}>
-                  Generar códigos nuevos
+                  {t('twoFactor.regenerate')}
                 </Button>
                 <Button variant="outline" onClick={() => setPasswordFor('disable')}>
-                  Desactivar
+                  {t('twoFactor.disable')}
                 </Button>
               </div>
             </div>
           ) : (
             <Button onClick={startSetup} disabled={busy || Boolean(enrollment)}>
-              {enrollment ? 'Configuración en curso' : 'Activar'}
+              {t(enrollment ? 'twoFactor.inProgress' : 'twoFactor.enable')}
             </Button>
           )}
         </div>
@@ -218,26 +217,27 @@ export default function TwoFactorSection({
           <div className="mb-3.5 flex items-start justify-between gap-4">
             <div>
               <div className="mb-1 text-base font-semibold text-muted-foreground">
-                Código por SMS
+                {t('twoFactor.smsTitle')}
               </div>
               <div className="text-[13px] text-secondary">
-                {status.phone_number ? `Al ${status.phone_number}` : 'Sin número registrado'}
+                {status.phone_number
+                  ? t('twoFactor.smsTo', { phone: status.phone_number })
+                  : t('twoFactor.smsNoPhone')}
               </div>
             </div>
             <span className="shrink-0 border border-input px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.07em] text-muted-foreground">
-              No disponible
+              {t('twoFactor.smsUnavailable')}
             </span>
           </div>
           <p className="m-0 mb-4 text-sm leading-relaxed text-muted-foreground">
-            Todavía no hay un proveedor de SMS conectado, así que esta opción no puede enviarte
-            nada. La dejamos visible para que sepas que existe, no para aparentar que funciona.
+            {t('twoFactor.smsNote')}
           </p>
           <button
             type="button"
             disabled
             className="cursor-not-allowed border border-input px-5 py-2.5 text-sm font-semibold text-secondary"
           >
-            Activar
+            {t('twoFactor.enable')}
           </button>
         </div>
       </div>
@@ -246,9 +246,9 @@ export default function TwoFactorSection({
       {enrollment && (
         <div className="mt-8 border-t rule-strong pt-6">
           <div className="mb-5 flex flex-wrap items-baseline gap-3.5">
-            <div className="fig text-[19px] font-medium">Activando la app de autenticación</div>
+            <div className="fig text-[19px] font-medium">{t('twoFactor.enrolling')}</div>
             <span className="text-xs text-muted-foreground">
-              Estado intermedio · aún no está activa
+              {t('twoFactor.enrollingNote')}
             </span>
           </div>
 
@@ -256,32 +256,31 @@ export default function TwoFactorSection({
             <div>
               <img
                 src={enrollment.qr_code}
-                alt="Código QR para tu app de autenticación"
+                alt={t('twoFactor.qrAlt')}
                 width={170}
                 height={170}
                 className="block border border-input bg-card"
               />
               <p className="m-0 mt-3 text-xs leading-relaxed text-muted-foreground">
-                Escanéalo con tu app
+                {t('twoFactor.scanIt')}
               </p>
             </div>
 
             <div>
               <div className="mb-2 text-xs text-muted-foreground">
-                ¿No puedes escanear? Escribe esta clave
+                {t('twoFactor.cannotScan')}
               </div>
               <div className="break-all border border-input bg-card p-3.5 font-mono text-sm leading-relaxed tracking-[0.09em]">
                 {enrollment.secret}
               </div>
               <p className="m-0 mt-3.5 text-[13px] leading-relaxed text-muted-foreground">
-                Esta clave se muestra una sola vez. Después queda cifrada en el servidor y no se
-                vuelve a mostrar.
+                {t('twoFactor.secretNote')}
               </p>
             </div>
 
             <div>
               <CodeInput
-                label="Confirma con el código que muestra tu app"
+                label={t('twoFactor.confirmWithCode')}
                 value={code}
                 onChange={setCode}
                 onComplete={confirm}
@@ -289,10 +288,10 @@ export default function TwoFactorSection({
               />
               <div className="mt-4 flex flex-wrap gap-3">
                 <Button onClick={() => confirm(code)} disabled={busy || code.length < 6}>
-                  Confirmar y activar
+                  {t('twoFactor.confirmAndEnable')}
                 </Button>
                 <Button variant="ghost" onClick={() => setEnrollment(null)} disabled={busy}>
-                  Cancelar
+                  {t('common.cancel')}
                 </Button>
               </div>
             </div>
@@ -304,18 +303,18 @@ export default function TwoFactorSection({
       {passwordFor && (
         <div className="mt-6 border border-input bg-card p-6">
           <div className="mb-2 text-base font-semibold">
-            {passwordFor === 'disable'
-              ? 'Confirma con tu contraseña para desactivar'
-              : 'Confirma con tu contraseña para generar códigos nuevos'}
+            {t(
+              passwordFor === 'disable'
+                ? 'twoFactor.passwordToDisable'
+                : 'twoFactor.passwordToRegenerate',
+            )}
           </div>
           <p className="m-0 mb-4 max-w-[70ch] text-sm leading-relaxed text-inksoft">
-            {passwordFor === 'disable'
-              ? 'Desactivar la verificación en dos pasos debilita tu cuenta, así que se pide la contraseña otra vez: una sesión abierta y desatendida no debería poder hacerlo sola.'
-              : 'Los códigos anteriores dejarán de funcionar en cuanto se generen los nuevos.'}
+            {t(passwordFor === 'disable' ? 'twoFactor.disableNote' : 'twoFactor.regenerateNote')}
           </p>
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-[240px] flex-grow">
-              <Label htmlFor="tfa-password">Contraseña</Label>
+              <Label htmlFor="tfa-password">{t('twoFactor.password')}</Label>
               <Input
                 id="tfa-password"
                 type="password"
@@ -326,7 +325,7 @@ export default function TwoFactorSection({
               />
             </div>
             <Button onClick={submitPassword} disabled={busy || !password}>
-              Confirmar
+              {t('common.confirm')}
             </Button>
             <Button
               variant="ghost"
@@ -336,7 +335,7 @@ export default function TwoFactorSection({
                 setError('');
               }}
             >
-              Cancelar
+              {t('common.cancel')}
             </Button>
           </div>
         </div>
